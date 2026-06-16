@@ -146,7 +146,8 @@ export async function igLogin(env: IgEnv): Promise<IgSession> {
   });
   if (!res.ok) {
     const txt = await res.text();
-    throw new Error(explainLoginFailure(res.status, txt, env));
+    const code = parseIgErrorCode(txt);
+    throw new IgLoginError(explainLoginFailure(res.status, txt, env), code, res.status);
   }
   const cst = res.headers.get("CST") ?? "";
   const xst = res.headers.get("X-SECURITY-TOKEN") ?? "";
