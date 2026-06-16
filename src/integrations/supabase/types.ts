@@ -17,9 +17,11 @@ export type Database = {
       app_settings: {
         Row: {
           auto_execute: boolean
+          dry_run: boolean
           environment: string
           id: number
           live_confirmed: boolean
+          loss_cap_notified_date: string | null
           max_daily_loss_pct: number
           max_risk_per_trade_pct: number
           min_confidence: number
@@ -29,9 +31,11 @@ export type Database = {
         }
         Insert: {
           auto_execute?: boolean
+          dry_run?: boolean
           environment?: string
           id?: number
           live_confirmed?: boolean
+          loss_cap_notified_date?: string | null
           max_daily_loss_pct?: number
           max_risk_per_trade_pct?: number
           min_confidence?: number
@@ -41,9 +45,11 @@ export type Database = {
         }
         Update: {
           auto_execute?: boolean
+          dry_run?: boolean
           environment?: string
           id?: number
           live_confirmed?: boolean
+          loss_cap_notified_date?: string | null
           max_daily_loss_pct?: number
           max_risk_per_trade_pct?: number
           min_confidence?: number
@@ -56,6 +62,7 @@ export type Database = {
       daily_pnl: {
         Row: {
           date: string
+          eod_closed_at: string | null
           equity_close: number | null
           equity_open: number | null
           loss_cap_hit: boolean
@@ -65,6 +72,7 @@ export type Database = {
         }
         Insert: {
           date: string
+          eod_closed_at?: string | null
           equity_close?: number | null
           equity_open?: number | null
           loss_cap_hit?: boolean
@@ -74,6 +82,7 @@ export type Database = {
         }
         Update: {
           date?: string
+          eod_closed_at?: string | null
           equity_close?: number | null
           equity_open?: number | null
           loss_cap_hit?: boolean
@@ -113,6 +122,75 @@ export type Database = {
           name?: string
           tick_value_per_point?: number
           type?: string
+        }
+        Relationships: []
+      }
+      job_runs: {
+        Row: {
+          duration_ms: number | null
+          error: string | null
+          finished_at: string | null
+          id: number
+          job_name: string
+          started_at: string
+          status: string
+          summary: Json | null
+        }
+        Insert: {
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: number
+          job_name: string
+          started_at?: string
+          status?: string
+          summary?: Json | null
+        }
+        Update: {
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: number
+          job_name?: string
+          started_at?: string
+          status?: string
+          summary?: Json | null
+        }
+        Relationships: []
+      }
+      notification_settings: {
+        Row: {
+          email_enabled: boolean
+          email_to: string | null
+          id: number
+          notify_on_eod: boolean
+          notify_on_errors: boolean
+          notify_on_loss_cap: boolean
+          updated_at: string
+          webhook_enabled: boolean
+          webhook_url: string | null
+        }
+        Insert: {
+          email_enabled?: boolean
+          email_to?: string | null
+          id?: number
+          notify_on_eod?: boolean
+          notify_on_errors?: boolean
+          notify_on_loss_cap?: boolean
+          updated_at?: string
+          webhook_enabled?: boolean
+          webhook_url?: string | null
+        }
+        Update: {
+          email_enabled?: boolean
+          email_to?: string | null
+          id?: number
+          notify_on_eod?: boolean
+          notify_on_errors?: boolean
+          notify_on_loss_cap?: boolean
+          updated_at?: string
+          webhook_enabled?: boolean
+          webhook_url?: string | null
         }
         Relationships: []
       }
