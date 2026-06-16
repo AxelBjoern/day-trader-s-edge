@@ -40,6 +40,9 @@ export async function igLogin(env: IgEnv): Promise<IgSession> {
   if (!c.apiKey || !c.username || !c.password) {
     throw new Error(`IG credentials missing for ${env}`);
   }
+  if (!/^[A-Za-z0-9._-]+$/.test(c.username)) {
+    throw new Error(`IG username for ${env} has invalid characters (allowed: letters, digits, . _ -). Check the secret value.`);
+  }
   const res = await fetch(`${c.baseUrl}/session`, {
     method: "POST",
     headers: {
