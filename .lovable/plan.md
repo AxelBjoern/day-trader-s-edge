@@ -1,32 +1,48 @@
-# Fix: connection checks and AI routing
+# IG Credentials Diagnostics Panel
 
-## Findings
+Replace the current raw-JSON failure banner under "IG CONNECTION" with a structured diagnostics panel that surfaces actionable information when login is rejected.
 
-1. **IG connection**
-   - The app is reaching IG successfully; the failing response is from IG itself.
-   - Recent backend log: `IG login failed (401): {"errorCode":"error.security.invalid-details"}`.
-   - That means the configured demo username, password, API key, or selected environment do not match an active IG demo account.
+## What it shows
 
-2. **AI router**
-   - The scan code still used the old Hermes naming/model path.
-   - OpenRouter currently exposes DeepSeek V4 Pro as `deepseek/deepseek-v4-pro`.
+On every "Check IG connection" result (success or failure):
+- **Environment** — `demo` / `live` badge.
+- **Sanitized identifier** — IG username masked to first 2 + last 2 chars (e.g. `ax****22`), plus character length. Never reveals the full username, password, or API key.
+- **API key fingerprint** — last 4 chars only (e.g. `••••A1B2`), so the user can verify which key is loaded without exposing it.
+- **Latency** — ms from the existing response.
+- **Status** — OK / Failed with HTTP-style error code.
 
-## Fix implemented
+On failure additionally:
+- **Error code** — parsed IG code (e.g. `error.security.invalid-details`, `error.security.client-token-invalid`, HTTP status).
+- **Next step** — one clear human sentence tied to the code:
+  - `invalid-details` → "Update IG_USERNAME and IG_PASSWORD — they don't match an active demo account."
+  - `client-token-invalid` → "Update IG_API_KEY — the key isn't valid for this username."
+  - `403` → "Enable API access on the IG account."
+  - unknown → generic "Re-check all three IG secrets for the selected environment."
+- **Action buttons** — "Update IG secrets" (opens secrets dialog), "Switch environment" link.
 
-1. **IG diagnostics**
-   - Keep using the configured demo/live IG secrets.
-   - Return a clear safe error when IG replies with `error.security.invalid-details` instead of showing only the raw broker payload.
-   - Preserve the Settings page **Check IG connection** action.
+On success: equity, balance, currency, open positions (already returned).
 
-2. **OpenRouter / DeepSeek**
-   - Default AI model is now `deepseek/deepseek-v4-pro`.
-   - Optional override: `OPENROUTER_MODEL` can be set later without code changes.
-   - Scan and validation logs now report `OpenRouter` and the exact model used.
-   - Settings now includes **Check AI router** to verify the OpenRouter key/model independently.
+## Technical changes
 
-3. **Copy updates**
-   - Public copy now says DeepSeek V4 Pro instead of Hermes 4 405B.
+### `src/lib/ig.server.ts`
+- Add `sanitizeIdentifier(u)` → `ax****22` (first 2 + last 2, `*` middle; `***` if ≤ 4 chars).
+- Add `fingerprintKey(k)` → last 4 chars.
+- Add `parseIgErrorCode(status, body)` → returns `{ code: string | null, httpStatus: number }` extracted from IG's `errorCode` JSON field (fallback to substring scan).
+- Export a new `igDiagnostics(env)` helper that returns `{ env, identifier, identifier_len, api_key_fingerprint, has_password }` from secrets without performing login (used even when secrets are missing).
 
-## Remaining action
+### `src/lib/trading.functions.ts`
+- Extend `checkIgConnection` response shape:
+  - Always include `identifier`, `identifier_len`, `api_key_fingerprint`, `password_set` (boolean), `env_credentials_present`.
+  - On failure include `error_code` (parsed IG code or HTTP status string) and `next_step` (string).
+- Implementation: call `igDiagnostics(env)` first; then attempt login. On thrown error parse the message for the IG code via the new helper.
 
-- If IG still fails after this code change, update the IG demo secrets so `IG_USERNAME`, `IG_PASSWORD`, and `IG_API_KEY` all belong to the same active IG demo account. The current failure is not a route/build issue; it is broker credential rejection.
+### `src/routes/_authenticated/dashboard.settings.tsx`
+- Replace the raw `JSON.stringify(r)` rendering for IG with a new `<IgDiagnostics result={...} />` panel:
+  - Grid of labeled fields (identifier, API key, env, latency).
+  - Colored status row (green/red).
+  - On failure: error code chip + next-step paragraph + "Update IG secrets" button (uses existing settings flow / opens backend link).
+- OpenRouter banner stays as-is (out of scope).
+
+## Out of scope
+- No changes to scan logic, OpenRouter panel, or secret storage.
+- No new secrets or migrations.

@@ -307,13 +307,30 @@ export const checkIgConnection = createServerFn({ method: "POST" })
       env = ((s as any)?.environment as "demo" | "live") ?? "demo";
     }
     const started = Date.now();
+    const { igLogin, igGetPositions, igDiagnostics, nextStepForIgError } = await import("./ig.server");
+    const diag = igDiagnostics(env);
+    if (!diag.credentials_present) {
+      const missing = [
+        !diag.identifier_len && (env === "live" ? "IG_LIVE_USERNAME" : "IG_USERNAME"),
+        !diag.password_set && (env === "live" ? "IG_LIVE_PASSWORD" : "IG_PASSWORD"),
+        !diag.api_key_len && (env === "live" ? "IG_LIVE_API_KEY" : "IG_API_KEY"),
+      ].filter(Boolean);
+      return {
+        ok: false,
+        ...diag,
+        latency_ms: 0,
+        error: `IG credentials missing for ${env}`,
+        error_code: "missing-credentials",
+        http_status: 0,
+        next_step: `Set the following secret(s): ${missing.join(", ")}.`,
+      };
+    }
     try {
-      const { igLogin, igGetPositions } = await import("./ig.server");
       const session = await igLogin(env);
       const pos = await igGetPositions(session).catch(() => ({ positions: [] }));
       return {
         ok: true,
-        environment: env,
+        ...diag,
         latency_ms: Date.now() - started,
         account_equity: session.accountEquity,
         account_balance: session.accountBalance,
@@ -321,11 +338,16 @@ export const checkIgConnection = createServerFn({ method: "POST" })
         open_positions: pos.positions?.length ?? 0,
       };
     } catch (e: any) {
+      const code: string | null = e?.code ?? null;
+      const httpStatus: number = e?.httpStatus ?? 0;
       return {
         ok: false,
-        environment: env,
+        ...diag,
         latency_ms: Date.now() - started,
         error: e?.message ?? String(e),
+        error_code: code ?? (httpStatus ? `HTTP ${httpStatus}` : "unknown"),
+        http_status: httpStatus,
+        next_step: nextStepForIgError(code, httpStatus, env),
       };
     }
   });

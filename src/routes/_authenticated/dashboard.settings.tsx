@@ -30,7 +30,7 @@ function SettingsPage() {
   const [form, setForm] = useState<any>(null);
   const [nform, setNform] = useState<any>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
-  const [igResult, setIgResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [igResult, setIgResult] = useState<any | null>(null);
   const [routerResult, setRouterResult] = useState<{ ok: boolean; text: string } | null>(null);
 
 
@@ -58,8 +58,8 @@ function SettingsPage() {
   });
   const runIgCheck = useMutation({
     mutationFn: async () => await igCheck({ data: {} }),
-    onSuccess: (r: any) => setIgResult({ ok: !!r?.ok, text: JSON.stringify(r) }),
-    onError: (e: any) => setIgResult({ ok: false, text: `Error: ${e.message}` }),
+    onSuccess: (r: any) => setIgResult(r),
+    onError: (e: any) => setIgResult({ ok: false, error: e.message, error_code: "client-error", next_step: "Retry — the request didn't reach the server." }),
   });
   const runRouterCheck = useMutation({
     mutationFn: async () => await routerCheck(),
@@ -263,13 +263,9 @@ function SettingsPage() {
             className="rounded-md border border-border bg-card px-6 py-2 text-sm font-semibold disabled:opacity-50">
             {runIgCheck.isPending ? "Checking…" : "Check IG connection"}
           </button>
-          {igResult && (
-            <div className={`rounded-md border p-3 text-xs ${igResult.ok ? "border-bull/40 bg-bull/10 text-bull" : "border-bear/40 bg-bear/10 text-bear"}`}>
-              <div className="font-semibold mb-1">{igResult.ok ? "✓ IG connection OK" : "✗ IG connection failed"}</div>
-              <div className="font-mono break-all text-[10px] opacity-80">{igResult.text}</div>
-            </div>
-          )}
+          {igResult && <IgDiagnosticsPanel r={igResult} />}
         </Section>
+
       </div>
     </div>
   );
@@ -289,5 +285,73 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-sm">{label}</span>
       {children}
     </label>
+  );
+}
+
+function IgDiagnosticsPanel({ r }: { r: any }) {
+  const ok = !!r?.ok;
+  const tone = ok
+    ? "border-bull/40 bg-bull/10 text-bull"
+    : "border-bear/40 bg-bear/10 text-bear";
+  return (
+    <div className={`rounded-md border p-3 text-xs space-y-3 ${tone}`}>
+      <div className="font-semibold">
+        {ok ? "✓ IG connection OK" : "✗ IG connection failed"}
+      </div>
+
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-foreground/90">
+        <DiagRow label="Environment" value={(r.environment ?? "—").toUpperCase()} />
+        <DiagRow label="Latency" value={r.latency_ms != null ? `${r.latency_ms} ms` : "—"} />
+        <DiagRow
+          label="Identifier"
+          value={r.identifier ? `${r.identifier} (${r.identifier_len} chars)` : "— (not set)"}
+        />
+        <DiagRow
+          label="API key"
+          value={r.api_key_fingerprint ? `${r.api_key_fingerprint} (${r.api_key_len} chars)` : "— (not set)"}
+        />
+        <DiagRow label="Password" value={r.password_set ? `set (${r.password_len} chars)` : "— (not set)"} />
+        {ok && (
+          <>
+            <DiagRow label="Equity" value={`${r.account_equity ?? 0} ${r.currency ?? ""}`} />
+            <DiagRow label="Balance" value={`${r.account_balance ?? 0} ${r.currency ?? ""}`} />
+            <DiagRow label="Open positions" value={String(r.open_positions ?? 0)} />
+          </>
+        )}
+      </dl>
+
+      {!ok && (
+        <div className="space-y-2 border-t border-current/20 pt-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wider opacity-70">Error code</span>
+            <code className="rounded bg-background/40 px-1.5 py-0.5 font-mono text-[11px]">
+              {r.error_code ?? "unknown"}
+              {r.http_status ? ` · HTTP ${r.http_status}` : ""}
+            </code>
+          </div>
+          {r.next_step && (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider opacity-70 mb-0.5">Next step</div>
+              <div className="text-[12px] leading-snug text-foreground">{r.next_step}</div>
+            </div>
+          )}
+          {r.error && (
+            <details className="text-[10px] opacity-70">
+              <summary className="cursor-pointer">Raw error</summary>
+              <div className="font-mono break-all mt-1">{r.error}</div>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiagRow({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt className="opacity-70">{label}</dt>
+      <dd className="font-mono break-all text-right">{value}</dd>
+    </>
   );
 }

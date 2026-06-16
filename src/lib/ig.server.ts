@@ -35,17 +35,91 @@ function envCreds(env: IgEnv) {
   };
 }
 
+export function sanitizeIdentifier(u: string | undefined | null): string {
+  const s = (u ?? "").trim();
+  if (!s) return "";
+  if (s.length <= 4) return "*".repeat(s.length);
+  return `${s.slice(0, 2)}${"*".repeat(Math.max(2, s.length - 4))}${s.slice(-2)}`;
+}
+
+export function fingerprintKey(k: string | undefined | null): string {
+  const s = (k ?? "").trim();
+  if (!s) return "";
+  if (s.length <= 4) return "*".repeat(s.length);
+  return `••••${s.slice(-4)}`;
+}
+
+export function parseIgErrorCode(body: string): string | null {
+  try {
+    const j = JSON.parse(body);
+    if (j && typeof j.errorCode === "string") return j.errorCode;
+  } catch {
+    /* not json */
+  }
+  const m = body.match(/error\.[a-zA-Z0-9._-]+/);
+  return m ? m[0] : null;
+}
+
+export function nextStepForIgError(code: string | null, httpStatus: number, env: IgEnv): string {
+  const prefix = env === "live" ? "IG_LIVE_" : "IG_";
+  if (code === "error.security.invalid-details") {
+    return `Update ${prefix}USERNAME and ${prefix}PASSWORD — they don't match an active ${env} IG account.`;
+  }
+  if (code === "error.security.client-token-invalid" || code === "error.security.api-key-invalid") {
+    return `Update ${prefix}API_KEY — the key isn't valid for this username on the ${env} environment.`;
+  }
+  if (code === "error.security.account-migrated") {
+    return `This IG account has been migrated. Sign in to IG.com once to complete the migration, then re-check.`;
+  }
+  if (code === "error.public-api.failure.encryption.required") {
+    return `IG requires an encrypted password for this account. Contact support.`;
+  }
+  if (httpStatus === 403) {
+    return `IG refused API access. Enable API access on the ${env} IG account.`;
+  }
+  if (httpStatus === 429) {
+    return `IG rate-limited the login. Wait a minute and try again.`;
+  }
+  return `Re-check ${prefix}USERNAME, ${prefix}PASSWORD, and ${prefix}API_KEY for the ${env} environment.`;
+}
+
+export function igDiagnostics(env: IgEnv) {
+  const c = envCreds(env);
+  return {
+    environment: env,
+    identifier: sanitizeIdentifier(c.username),
+    identifier_len: c.username.length,
+    api_key_fingerprint: fingerprintKey(c.apiKey),
+    api_key_len: c.apiKey.length,
+    password_set: c.password.length > 0,
+    password_len: c.password.length,
+    credentials_present: !!(c.apiKey && c.username && c.password),
+  };
+}
+
+export class IgLoginError extends Error {
+  code: string | null;
+  httpStatus: number;
+  constructor(message: string, code: string | null, httpStatus: number) {
+    super(message);
+    this.name = "IgLoginError";
+    this.code = code;
+    this.httpStatus = httpStatus;
+  }
+}
+
 function explainLoginFailure(status: number, body: string, env: IgEnv) {
-  if (status === 401 && body.includes("error.security.invalid-details")) {
+  const code = parseIgErrorCode(body);
+  if (status === 401 && code === "error.security.invalid-details") {
     return `IG rejected the ${env} credentials: username, password, API key, or environment do not match an active ${env} IG account.`;
   }
-  if (status === 401 && body.includes("error.security.client-token-invalid")) {
+  if (status === 401 && code === "error.security.client-token-invalid") {
     return `IG rejected the ${env} API key. Check that the key belongs to the same ${env} account as the username.`;
   }
   if (status === 403) {
     return `IG refused API access for the ${env} account. Confirm API access is enabled on the IG account.`;
   }
-  return `IG login failed (${status}): ${body}`;
+  return `IG login failed (${status}${code ? ` ${code}` : ""}): ${body.slice(0, 200)}`;
 }
 
 export async function igLogin(env: IgEnv): Promise<IgSession> {
@@ -72,7 +146,8 @@ export async function igLogin(env: IgEnv): Promise<IgSession> {
   });
   if (!res.ok) {
     const txt = await res.text();
-    throw new Error(explainLoginFailure(res.status, txt, env));
+    const code = parseIgErrorCode(txt);
+    throw new IgLoginError(explainLoginFailure(res.status, txt, env), code, res.status);
   }
   const cst = res.headers.get("CST") ?? "";
   const xst = res.headers.get("X-SECURITY-TOKEN") ?? "";
