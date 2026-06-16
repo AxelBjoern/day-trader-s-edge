@@ -31,6 +31,7 @@ function SettingsPage() {
   const [nform, setNform] = useState<any>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [igResult, setIgResult] = useState<any | null>(null);
+  const [igBoth, setIgBoth] = useState<{ demo: any | null; live: any | null } | null>(null);
   const [routerResult, setRouterResult] = useState<{ ok: boolean; text: string } | null>(null);
 
 
@@ -60,6 +61,26 @@ function SettingsPage() {
     mutationFn: async () => await igCheck({ data: {} }),
     onSuccess: (r: any) => setIgResult(r),
     onError: (e: any) => setIgResult({ ok: false, error: e.message, error_code: "client-error", next_step: "Retry — the request didn't reach the server." }),
+  });
+  const runIgBothCheck = useMutation({
+    mutationFn: async () => {
+      const [demo, live] = await Promise.all([
+        igCheck({ data: { environment: "demo" } }).catch((e: any) => ({
+          ok: false, environment: "demo", error: e.message,
+          error_code: "client-error", next_step: "Retry — request didn't reach the server.",
+        })),
+        igCheck({ data: { environment: "live" } }).catch((e: any) => ({
+          ok: false, environment: "live", error: e.message,
+          error_code: "client-error", next_step: "Retry — request didn't reach the server.",
+        })),
+      ]);
+      return { demo, live };
+    },
+    onSuccess: (r) => setIgBoth(r),
+    onError: (e: any) => setIgBoth({
+      demo: { ok: false, environment: "demo", error: e.message, error_code: "client-error" },
+      live: { ok: false, environment: "live", error: e.message, error_code: "client-error" },
+    }),
   });
   const runRouterCheck = useMutation({
     mutationFn: async () => await routerCheck(),
@@ -259,11 +280,29 @@ function SettingsPage() {
           <div className="text-xs text-muted-foreground">
             Logs in to IG using the configured environment ({form.environment.toUpperCase()}) and fetches the account snapshot.
           </div>
-          <button type="button" onClick={() => runIgCheck.mutate()} disabled={runIgCheck.isPending}
-            className="rounded-md border border-border bg-card px-6 py-2 text-sm font-semibold disabled:opacity-50">
-            {runIgCheck.isPending ? "Checking…" : "Check IG connection"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => runIgCheck.mutate()} disabled={runIgCheck.isPending}
+              className="rounded-md border border-border bg-card px-6 py-2 text-sm font-semibold disabled:opacity-50">
+              {runIgCheck.isPending ? "Checking…" : "Check IG connection"}
+            </button>
+            <button type="button" onClick={() => runIgBothCheck.mutate()} disabled={runIgBothCheck.isPending}
+              className="rounded-md border border-border bg-card px-6 py-2 text-sm font-semibold disabled:opacity-50">
+              {runIgBothCheck.isPending ? "Checking demo + live…" : "Check both (demo + live)"}
+            </button>
+          </div>
           {igResult && <IgDiagnosticsPanel r={igResult} />}
+          {igBoth && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Demo</div>
+                <IgDiagnosticsPanel r={igBoth.demo} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Live</div>
+                <IgDiagnosticsPanel r={igBoth.live} />
+              </div>
+            </div>
+          )}
         </Section>
 
       </div>
