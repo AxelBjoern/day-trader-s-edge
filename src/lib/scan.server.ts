@@ -30,6 +30,7 @@ export interface ScanResult {
   signals_validated: number;
   orders_built: number;
   orders_executed: number;
+  dry_run?: boolean;
   details?: any;
 }
 
