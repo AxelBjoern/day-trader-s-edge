@@ -280,11 +280,29 @@ function SettingsPage() {
           <div className="text-xs text-muted-foreground">
             Logs in to IG using the configured environment ({form.environment.toUpperCase()}) and fetches the account snapshot.
           </div>
-          <button type="button" onClick={() => runIgCheck.mutate()} disabled={runIgCheck.isPending}
-            className="rounded-md border border-border bg-card px-6 py-2 text-sm font-semibold disabled:opacity-50">
-            {runIgCheck.isPending ? "Checking…" : "Check IG connection"}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => runIgCheck.mutate()} disabled={runIgCheck.isPending}
+              className="rounded-md border border-border bg-card px-6 py-2 text-sm font-semibold disabled:opacity-50">
+              {runIgCheck.isPending ? "Checking…" : "Check IG connection"}
+            </button>
+            <button type="button" onClick={() => runIgBothCheck.mutate()} disabled={runIgBothCheck.isPending}
+              className="rounded-md border border-border bg-card px-6 py-2 text-sm font-semibold disabled:opacity-50">
+              {runIgBothCheck.isPending ? "Checking demo + live…" : "Check both (demo + live)"}
+            </button>
+          </div>
           {igResult && <IgDiagnosticsPanel r={igResult} />}
+          {igBoth && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Demo</div>
+                <IgDiagnosticsPanel r={igBoth.demo} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Live</div>
+                <IgDiagnosticsPanel r={igBoth.live} />
+              </div>
+            </div>
+          )}
         </Section>
 
       </div>
