@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getDashboard, getInstruments, updateSettings,
   getNotificationSettings, updateNotificationSettings, sendTestNotification,
+  checkIgConnection,
 } from "@/lib/trading.functions";
 import { useEffect, useState } from "react";
 
@@ -18,6 +19,7 @@ function SettingsPage() {
   const fetchNotif = useServerFn(getNotificationSettings);
   const updateNotif = useServerFn(updateNotificationSettings);
   const testNotif = useServerFn(sendTestNotification);
+  const igCheck = useServerFn(checkIgConnection);
   const qc = useQueryClient();
 
   const d = useQuery({ queryKey: ["dashboard"], queryFn: () => fetchDash() });
@@ -26,7 +28,9 @@ function SettingsPage() {
 
   const [form, setForm] = useState<any>(null);
   const [nform, setNform] = useState<any>(null);
-  const [testResult, setTestResult] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [igResult, setIgResult] = useState<{ ok: boolean; text: string } | null>(null);
+
 
   useEffect(() => { if (d.data?.settings && !form) setForm(d.data.settings); }, [d.data, form]);
   useEffect(() => { if (notif.data && !nform) setNform(notif.data); }, [notif.data, nform]);
@@ -41,8 +45,19 @@ function SettingsPage() {
   });
   const sendTest = useMutation({
     mutationFn: async () => await testNotif(),
-    onSuccess: (r: any) => setTestResult(JSON.stringify(r)),
-    onError: (e: any) => setTestResult(`Error: ${e.message}`),
+    onSuccess: (r: any) => {
+      const emailOk = r?.email?.ok;
+      const webhookOk = r?.webhook?.ok;
+      const sent = r?.email || r?.webhook;
+      const ok = sent ? !!(emailOk || webhookOk) : false;
+      setTestResult({ ok, text: JSON.stringify(r) });
+    },
+    onError: (e: any) => setTestResult({ ok: false, text: `Error: ${e.message}` }),
+  });
+  const runIgCheck = useMutation({
+    mutationFn: async () => await igCheck({ data: {} }),
+    onSuccess: (r: any) => setIgResult({ ok: !!r?.ok, text: JSON.stringify(r) }),
+    onError: (e: any) => setIgResult({ ok: false, text: `Error: ${e.message}` }),
   });
 
   if (!form || !nform) return <div className="text-muted-foreground">Loading…</div>;
@@ -209,9 +224,30 @@ function SettingsPage() {
           {saveNotif.isSuccess && <span className="text-xs text-bull">Saved.</span>}
         </div>
         {testResult && (
-          <div className="rounded-md border border-border bg-card p-3 text-xs font-mono break-all">{testResult}</div>
+          <div className={`rounded-md border p-3 text-xs ${testResult.ok ? "border-bull/40 bg-bull/10 text-bull" : "border-bear/40 bg-bear/10 text-bear"}`}>
+            <div className="font-semibold mb-1">{testResult.ok ? "✓ Notification sent" : "✗ Notification failed"}</div>
+            <div className="font-mono break-all text-[10px] opacity-80">{testResult.text}</div>
+          </div>
         )}
       </form>
+
+      <div className="space-y-3">
+        <Section title="IG connection">
+          <div className="text-xs text-muted-foreground">
+            Logs in to IG using the configured environment ({form.environment.toUpperCase()}) and fetches the account snapshot.
+          </div>
+          <button type="button" onClick={() => runIgCheck.mutate()} disabled={runIgCheck.isPending}
+            className="rounded-md border border-border bg-card px-6 py-2 text-sm font-semibold disabled:opacity-50">
+            {runIgCheck.isPending ? "Checking…" : "Check IG connection"}
+          </button>
+          {igResult && (
+            <div className={`rounded-md border p-3 text-xs ${igResult.ok ? "border-bull/40 bg-bull/10 text-bull" : "border-bear/40 bg-bear/10 text-bear"}`}>
+              <div className="font-semibold mb-1">{igResult.ok ? "✓ IG connection OK" : "✗ IG connection failed"}</div>
+              <div className="font-mono break-all text-[10px] opacity-80">{igResult.text}</div>
+            </div>
+          )}
+        </Section>
+      </div>
     </div>
   );
 }

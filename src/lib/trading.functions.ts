@@ -289,3 +289,43 @@ export const sendTestNotification = createServerFn({ method: "POST" })
       ts: new Date().toISOString(),
     });
   });
+
+// ----- IG connection check -----
+
+export const checkIgConnection = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({
+    environment: z.enum(["demo", "live"]).optional(),
+  }).parse(d ?? {}))
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    let env = data.environment;
+    if (!env) {
+      const { data: s } = await supabaseAdmin
+        .from("app_settings").select("environment").eq("id", 1).single();
+      env = ((s as any)?.environment as "demo" | "live") ?? "demo";
+    }
+    const started = Date.now();
+    try {
+      const { igLogin, igGetPositions } = await import("./ig.server");
+      const session = await igLogin(env);
+      const pos = await igGetPositions(session).catch(() => ({ positions: [] }));
+      return {
+        ok: true,
+        environment: env,
+        latency_ms: Date.now() - started,
+        account_equity: session.accountEquity,
+        account_balance: session.accountBalance,
+        currency: session.currency,
+        open_positions: pos.positions?.length ?? 0,
+      };
+    } catch (e: any) {
+      return {
+        ok: false,
+        environment: env,
+        latency_ms: Date.now() - started,
+        error: e?.message ?? String(e),
+      };
+    }
+  });
