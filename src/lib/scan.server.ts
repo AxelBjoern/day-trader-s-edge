@@ -178,17 +178,55 @@ export async function runScan(opts: ScanOptions = {}): Promise<ScanResult> {
     min_confidence: Number(settings.min_confidence),
   });
 
+  const dryRun = opts.dryRunOverride ?? !!settings.dry_run;
+
   if (daily_loss_limit_hit) {
     await supabaseAdmin.from("daily_pnl").upsert({
       date: today, realized_pnl: realized, loss_cap_hit: true,
     }, { onConflict: "date" });
+    // Pause auto-exec for the day and send notification once per day
+    if (settings.auto_execute) {
+      await supabaseAdmin.from("app_settings").update({ auto_execute: false }).eq("id", 1);
+      await log("loss_cap", "Daily loss cap hit — auto_execute paused", { realized, equity: session.accountEquity });
+    }
+    if (settings.loss_cap_notified_date !== today) {
+      try {
+        const { sendNotification } = await import("./notify.server");
+        const r = await sendNotification({
+          type: "loss_cap_triggered",
+          date: today,
+          equity: session.accountEquity,
+          daily_pnl: realized,
+          cap_pct: Number(settings.max_daily_loss_pct),
+          ts: new Date().toISOString(),
+        });
+        await log("notify", "Loss-cap notification dispatched", r);
+      } catch (e: any) {
+        await log("error", `Notify failed: ${e.message}`);
+      }
+      await supabaseAdmin.from("app_settings").update({ loss_cap_notified_date: today }).eq("id", 1);
+    }
   }
 
-  // Execute
+  // Execute (or simulate)
   let executed = 0;
-  if (settings.auto_execute) {
+  const canExecute = (settings.auto_execute && !daily_loss_limit_hit) || opts.manual;
+  if (canExecute) {
     for (const o of orders) {
       const sigId = signalIdsByEpic.get(o.epic + ":" + o.direction) ?? null;
+      if (dryRun) {
+        await supabaseAdmin.from("orders").insert({
+          signal_id: sigId, epic: o.epic, direction: o.direction, size: o.size,
+          stop_loss: o.stop_loss, take_profit: o.take_profit,
+          status: "dry_run",
+          raw: { dry_run: true, would_be: o } as any,
+        });
+        if (sigId) {
+          await supabaseAdmin.from("signals").update({ status: "dry_run" }).eq("id", sigId);
+        }
+        executed++;
+        continue;
+      }
       const ig = await igCreatePosition(session, {
         epic: o.epic, direction: o.direction, size: o.size,
         stopLevel: o.stop_loss, limitLevel: o.take_profit,
@@ -209,8 +247,8 @@ export async function runScan(opts: ScanOptions = {}): Promise<ScanResult> {
     }
   }
 
-  await log("scan", `Scan complete: ${validated.length} validated, ${orders.length} built, ${executed} executed`, {
-    env, equity: session.accountEquity, realized, skipped,
+  await log("scan", `Scan complete${dryRun ? " (DRY RUN)" : ""}: ${validated.length} validated, ${orders.length} built, ${executed} ${dryRun ? "simulated" : "executed"}`, {
+    env, equity: session.accountEquity, realized, skipped, dry_run: dryRun,
     quotes: quotes.map((q) => ({ epic: q.epic, bid: q.bid, ask: q.ask })),
   });
 
@@ -221,6 +259,7 @@ export async function runScan(opts: ScanOptions = {}): Promise<ScanResult> {
     signals_generated: rawSignals.length,
     signals_validated: validated.length,
     orders_built: orders.length, orders_executed: executed,
+    dry_run: dryRun,
     details: { skipped },
   };
 }
