@@ -17,8 +17,10 @@ import { Route as ApiPublicScanRouteImport } from './routes/api/public/scan'
 import { Route as ApiPublicEodCloseRouteImport } from './routes/api/public/eod-close'
 import { Route as AuthenticatedDashboardSignalsRouteImport } from './routes/_authenticated/dashboard.signals'
 import { Route as AuthenticatedDashboardSettingsRouteImport } from './routes/_authenticated/dashboard.settings'
+import { Route as AuthenticatedDashboardPerformanceRouteImport } from './routes/_authenticated/dashboard.performance'
 import { Route as AuthenticatedDashboardOrdersRouteImport } from './routes/_authenticated/dashboard.orders'
 import { Route as AuthenticatedDashboardLogsRouteImport } from './routes/_authenticated/dashboard.logs'
+import { Route as AuthenticatedDashboardJobsRouteImport } from './routes/_authenticated/dashboard.jobs'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -61,6 +63,12 @@ const AuthenticatedDashboardSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedDashboardPerformanceRoute =
+  AuthenticatedDashboardPerformanceRouteImport.update({
+    id: '/performance',
+    path: '/performance',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const AuthenticatedDashboardOrdersRoute =
   AuthenticatedDashboardOrdersRouteImport.update({
     id: '/orders',
@@ -73,13 +81,21 @@ const AuthenticatedDashboardLogsRoute =
     path: '/logs',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
+const AuthenticatedDashboardJobsRoute =
+  AuthenticatedDashboardJobsRouteImport.update({
+    id: '/jobs',
+    path: '/jobs',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRouteWithChildren
+  '/dashboard/jobs': typeof AuthenticatedDashboardJobsRoute
   '/dashboard/logs': typeof AuthenticatedDashboardLogsRoute
   '/dashboard/orders': typeof AuthenticatedDashboardOrdersRoute
+  '/dashboard/performance': typeof AuthenticatedDashboardPerformanceRoute
   '/dashboard/settings': typeof AuthenticatedDashboardSettingsRoute
   '/dashboard/signals': typeof AuthenticatedDashboardSignalsRoute
   '/api/public/eod-close': typeof ApiPublicEodCloseRoute
@@ -89,8 +105,10 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRouteWithChildren
+  '/dashboard/jobs': typeof AuthenticatedDashboardJobsRoute
   '/dashboard/logs': typeof AuthenticatedDashboardLogsRoute
   '/dashboard/orders': typeof AuthenticatedDashboardOrdersRoute
+  '/dashboard/performance': typeof AuthenticatedDashboardPerformanceRoute
   '/dashboard/settings': typeof AuthenticatedDashboardSettingsRoute
   '/dashboard/signals': typeof AuthenticatedDashboardSignalsRoute
   '/api/public/eod-close': typeof ApiPublicEodCloseRoute
@@ -102,8 +120,10 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRouteWithChildren
+  '/_authenticated/dashboard/jobs': typeof AuthenticatedDashboardJobsRoute
   '/_authenticated/dashboard/logs': typeof AuthenticatedDashboardLogsRoute
   '/_authenticated/dashboard/orders': typeof AuthenticatedDashboardOrdersRoute
+  '/_authenticated/dashboard/performance': typeof AuthenticatedDashboardPerformanceRoute
   '/_authenticated/dashboard/settings': typeof AuthenticatedDashboardSettingsRoute
   '/_authenticated/dashboard/signals': typeof AuthenticatedDashboardSignalsRoute
   '/api/public/eod-close': typeof ApiPublicEodCloseRoute
@@ -115,8 +135,10 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/dashboard/jobs'
     | '/dashboard/logs'
     | '/dashboard/orders'
+    | '/dashboard/performance'
     | '/dashboard/settings'
     | '/dashboard/signals'
     | '/api/public/eod-close'
@@ -126,8 +148,10 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/dashboard/jobs'
     | '/dashboard/logs'
     | '/dashboard/orders'
+    | '/dashboard/performance'
     | '/dashboard/settings'
     | '/dashboard/signals'
     | '/api/public/eod-close'
@@ -138,8 +162,10 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/dashboard'
+    | '/_authenticated/dashboard/jobs'
     | '/_authenticated/dashboard/logs'
     | '/_authenticated/dashboard/orders'
+    | '/_authenticated/dashboard/performance'
     | '/_authenticated/dashboard/settings'
     | '/_authenticated/dashboard/signals'
     | '/api/public/eod-close'
@@ -212,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardSettingsRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
+    '/_authenticated/dashboard/performance': {
+      id: '/_authenticated/dashboard/performance'
+      path: '/performance'
+      fullPath: '/dashboard/performance'
+      preLoaderRoute: typeof AuthenticatedDashboardPerformanceRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
     '/_authenticated/dashboard/orders': {
       id: '/_authenticated/dashboard/orders'
       path: '/orders'
@@ -226,20 +259,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardLogsRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
+    '/_authenticated/dashboard/jobs': {
+      id: '/_authenticated/dashboard/jobs'
+      path: '/jobs'
+      fullPath: '/dashboard/jobs'
+      preLoaderRoute: typeof AuthenticatedDashboardJobsRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
+    }
   }
 }
 
 interface AuthenticatedDashboardRouteChildren {
+  AuthenticatedDashboardJobsRoute: typeof AuthenticatedDashboardJobsRoute
   AuthenticatedDashboardLogsRoute: typeof AuthenticatedDashboardLogsRoute
   AuthenticatedDashboardOrdersRoute: typeof AuthenticatedDashboardOrdersRoute
+  AuthenticatedDashboardPerformanceRoute: typeof AuthenticatedDashboardPerformanceRoute
   AuthenticatedDashboardSettingsRoute: typeof AuthenticatedDashboardSettingsRoute
   AuthenticatedDashboardSignalsRoute: typeof AuthenticatedDashboardSignalsRoute
 }
 
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
   {
+    AuthenticatedDashboardJobsRoute: AuthenticatedDashboardJobsRoute,
     AuthenticatedDashboardLogsRoute: AuthenticatedDashboardLogsRoute,
     AuthenticatedDashboardOrdersRoute: AuthenticatedDashboardOrdersRoute,
+    AuthenticatedDashboardPerformanceRoute:
+      AuthenticatedDashboardPerformanceRoute,
     AuthenticatedDashboardSettingsRoute: AuthenticatedDashboardSettingsRoute,
     AuthenticatedDashboardSignalsRoute: AuthenticatedDashboardSignalsRoute,
   }
