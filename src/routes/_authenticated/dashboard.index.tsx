@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { getDashboard, manualScan, manualClose, getCronStatus } from "@/lib/trading.functions";
 import { useState } from "react";
 
-export const Route = createFileRoute("/_authenticated/dashboard")({
+export const Route = createFileRoute("/_authenticated/dashboard/")({
   component: Dashboard,
 });
 

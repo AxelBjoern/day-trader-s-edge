@@ -12,7 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard.index'
 import { Route as ApiPublicScanRouteImport } from './routes/api/public/scan'
 import { Route as ApiPublicEodCloseRouteImport } from './routes/api/public/eod-close'
 import { Route as AuthenticatedDashboardSignalsRouteImport } from './routes/_authenticated/dashboard.signals'
@@ -36,11 +36,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
+const AuthenticatedDashboardIndexRoute =
+  AuthenticatedDashboardIndexRouteImport.update({
+    id: '/dashboard/',
+    path: '/dashboard/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiPublicScanRoute = ApiPublicScanRouteImport.update({
   id: '/api/public/scan',
   path: '/api/public/scan',
@@ -53,45 +54,44 @@ const ApiPublicEodCloseRoute = ApiPublicEodCloseRouteImport.update({
 } as any)
 const AuthenticatedDashboardSignalsRoute =
   AuthenticatedDashboardSignalsRouteImport.update({
-    id: '/signals',
-    path: '/signals',
-    getParentRoute: () => AuthenticatedDashboardRoute,
+    id: '/dashboard/signals',
+    path: '/dashboard/signals',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedDashboardSettingsRoute =
   AuthenticatedDashboardSettingsRouteImport.update({
-    id: '/settings',
-    path: '/settings',
-    getParentRoute: () => AuthenticatedDashboardRoute,
+    id: '/dashboard/settings',
+    path: '/dashboard/settings',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedDashboardPerformanceRoute =
   AuthenticatedDashboardPerformanceRouteImport.update({
-    id: '/performance',
-    path: '/performance',
-    getParentRoute: () => AuthenticatedDashboardRoute,
+    id: '/dashboard/performance',
+    path: '/dashboard/performance',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedDashboardOrdersRoute =
   AuthenticatedDashboardOrdersRouteImport.update({
-    id: '/orders',
-    path: '/orders',
-    getParentRoute: () => AuthenticatedDashboardRoute,
+    id: '/dashboard/orders',
+    path: '/dashboard/orders',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedDashboardLogsRoute =
   AuthenticatedDashboardLogsRouteImport.update({
-    id: '/logs',
-    path: '/logs',
-    getParentRoute: () => AuthenticatedDashboardRoute,
+    id: '/dashboard/logs',
+    path: '/dashboard/logs',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedDashboardJobsRoute =
   AuthenticatedDashboardJobsRouteImport.update({
-    id: '/jobs',
-    path: '/jobs',
-    getParentRoute: () => AuthenticatedDashboardRoute,
+    id: '/dashboard/jobs',
+    path: '/dashboard/jobs',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/dashboard/jobs': typeof AuthenticatedDashboardJobsRoute
   '/dashboard/logs': typeof AuthenticatedDashboardLogsRoute
   '/dashboard/orders': typeof AuthenticatedDashboardOrdersRoute
@@ -100,11 +100,11 @@ export interface FileRoutesByFullPath {
   '/dashboard/signals': typeof AuthenticatedDashboardSignalsRoute
   '/api/public/eod-close': typeof ApiPublicEodCloseRoute
   '/api/public/scan': typeof ApiPublicScanRoute
+  '/dashboard/': typeof AuthenticatedDashboardIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/dashboard/jobs': typeof AuthenticatedDashboardJobsRoute
   '/dashboard/logs': typeof AuthenticatedDashboardLogsRoute
   '/dashboard/orders': typeof AuthenticatedDashboardOrdersRoute
@@ -113,13 +113,13 @@ export interface FileRoutesByTo {
   '/dashboard/signals': typeof AuthenticatedDashboardSignalsRoute
   '/api/public/eod-close': typeof ApiPublicEodCloseRoute
   '/api/public/scan': typeof ApiPublicScanRoute
+  '/dashboard': typeof AuthenticatedDashboardIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
-  '/_authenticated/dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/_authenticated/dashboard/jobs': typeof AuthenticatedDashboardJobsRoute
   '/_authenticated/dashboard/logs': typeof AuthenticatedDashboardLogsRoute
   '/_authenticated/dashboard/orders': typeof AuthenticatedDashboardOrdersRoute
@@ -128,13 +128,13 @@ export interface FileRoutesById {
   '/_authenticated/dashboard/signals': typeof AuthenticatedDashboardSignalsRoute
   '/api/public/eod-close': typeof ApiPublicEodCloseRoute
   '/api/public/scan': typeof ApiPublicScanRoute
+  '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/auth'
-    | '/dashboard'
     | '/dashboard/jobs'
     | '/dashboard/logs'
     | '/dashboard/orders'
@@ -143,11 +143,11 @@ export interface FileRouteTypes {
     | '/dashboard/signals'
     | '/api/public/eod-close'
     | '/api/public/scan'
+    | '/dashboard/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
-    | '/dashboard'
     | '/dashboard/jobs'
     | '/dashboard/logs'
     | '/dashboard/orders'
@@ -156,12 +156,12 @@ export interface FileRouteTypes {
     | '/dashboard/signals'
     | '/api/public/eod-close'
     | '/api/public/scan'
+    | '/dashboard'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
-    | '/_authenticated/dashboard'
     | '/_authenticated/dashboard/jobs'
     | '/_authenticated/dashboard/logs'
     | '/_authenticated/dashboard/orders'
@@ -170,6 +170,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard/signals'
     | '/api/public/eod-close'
     | '/api/public/scan'
+    | '/_authenticated/dashboard/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -203,11 +204,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
+    '/_authenticated/dashboard/': {
+      id: '/_authenticated/dashboard/'
       path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/public/scan': {
@@ -226,80 +227,68 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/dashboard/signals': {
       id: '/_authenticated/dashboard/signals'
-      path: '/signals'
+      path: '/dashboard/signals'
       fullPath: '/dashboard/signals'
       preLoaderRoute: typeof AuthenticatedDashboardSignalsRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard/settings': {
       id: '/_authenticated/dashboard/settings'
-      path: '/settings'
+      path: '/dashboard/settings'
       fullPath: '/dashboard/settings'
       preLoaderRoute: typeof AuthenticatedDashboardSettingsRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard/performance': {
       id: '/_authenticated/dashboard/performance'
-      path: '/performance'
+      path: '/dashboard/performance'
       fullPath: '/dashboard/performance'
       preLoaderRoute: typeof AuthenticatedDashboardPerformanceRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard/orders': {
       id: '/_authenticated/dashboard/orders'
-      path: '/orders'
+      path: '/dashboard/orders'
       fullPath: '/dashboard/orders'
       preLoaderRoute: typeof AuthenticatedDashboardOrdersRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard/logs': {
       id: '/_authenticated/dashboard/logs'
-      path: '/logs'
+      path: '/dashboard/logs'
       fullPath: '/dashboard/logs'
       preLoaderRoute: typeof AuthenticatedDashboardLogsRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard/jobs': {
       id: '/_authenticated/dashboard/jobs'
-      path: '/jobs'
+      path: '/dashboard/jobs'
       fullPath: '/dashboard/jobs'
       preLoaderRoute: typeof AuthenticatedDashboardJobsRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
   }
 }
 
-interface AuthenticatedDashboardRouteChildren {
+interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardJobsRoute: typeof AuthenticatedDashboardJobsRoute
   AuthenticatedDashboardLogsRoute: typeof AuthenticatedDashboardLogsRoute
   AuthenticatedDashboardOrdersRoute: typeof AuthenticatedDashboardOrdersRoute
   AuthenticatedDashboardPerformanceRoute: typeof AuthenticatedDashboardPerformanceRoute
   AuthenticatedDashboardSettingsRoute: typeof AuthenticatedDashboardSettingsRoute
   AuthenticatedDashboardSignalsRoute: typeof AuthenticatedDashboardSignalsRoute
-}
-
-const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
-  {
-    AuthenticatedDashboardJobsRoute: AuthenticatedDashboardJobsRoute,
-    AuthenticatedDashboardLogsRoute: AuthenticatedDashboardLogsRoute,
-    AuthenticatedDashboardOrdersRoute: AuthenticatedDashboardOrdersRoute,
-    AuthenticatedDashboardPerformanceRoute:
-      AuthenticatedDashboardPerformanceRoute,
-    AuthenticatedDashboardSettingsRoute: AuthenticatedDashboardSettingsRoute,
-    AuthenticatedDashboardSignalsRoute: AuthenticatedDashboardSignalsRoute,
-  }
-
-const AuthenticatedDashboardRouteWithChildren =
-  AuthenticatedDashboardRoute._addFileChildren(
-    AuthenticatedDashboardRouteChildren,
-  )
-
-interface AuthenticatedRouteRouteChildren {
-  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRouteWithChildren
+  AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedDashboardRoute: AuthenticatedDashboardRouteWithChildren,
+  AuthenticatedDashboardJobsRoute: AuthenticatedDashboardJobsRoute,
+  AuthenticatedDashboardLogsRoute: AuthenticatedDashboardLogsRoute,
+  AuthenticatedDashboardOrdersRoute: AuthenticatedDashboardOrdersRoute,
+  AuthenticatedDashboardPerformanceRoute:
+    AuthenticatedDashboardPerformanceRoute,
+  AuthenticatedDashboardSettingsRoute: AuthenticatedDashboardSettingsRoute,
+  AuthenticatedDashboardSignalsRoute: AuthenticatedDashboardSignalsRoute,
+  AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
