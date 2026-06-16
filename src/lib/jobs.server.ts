@@ -18,7 +18,7 @@ export async function recordJobRun<T>(
       finished_at: new Date().toISOString(),
       duration_ms: Date.now() - started,
       status,
-      summary: { ...(meta ?? {}), result },
+      summary: { ...(meta ?? {}), result } as any,
     }).eq("id", id);
     return result;
   } catch (e: any) {
