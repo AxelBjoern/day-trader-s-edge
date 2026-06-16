@@ -47,8 +47,6 @@ export async function callOpenRouter(
   return content as string;
 }
 
-export const callHermes = callOpenRouter;
-
 export function parseJsonLoose<T = unknown>(s: string): T | null {
   if (!s) return null;
   try { return JSON.parse(s) as T; } catch {}
