@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getDashboard, getInstruments, updateSettings,
   getNotificationSettings, updateNotificationSettings, sendTestNotification,
-  checkIgConnection,
+  checkIgConnection, checkOpenRouterConnection,
 } from "@/lib/trading.functions";
 import { useEffect, useState } from "react";
 
@@ -20,6 +20,7 @@ function SettingsPage() {
   const updateNotif = useServerFn(updateNotificationSettings);
   const testNotif = useServerFn(sendTestNotification);
   const igCheck = useServerFn(checkIgConnection);
+  const routerCheck = useServerFn(checkOpenRouterConnection);
   const qc = useQueryClient();
 
   const d = useQuery({ queryKey: ["dashboard"], queryFn: () => fetchDash() });
@@ -30,6 +31,7 @@ function SettingsPage() {
   const [nform, setNform] = useState<any>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [igResult, setIgResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [routerResult, setRouterResult] = useState<{ ok: boolean; text: string } | null>(null);
 
 
   useEffect(() => { if (d.data?.settings && !form) setForm(d.data.settings); }, [d.data, form]);
@@ -58,6 +60,11 @@ function SettingsPage() {
     mutationFn: async () => await igCheck({ data: {} }),
     onSuccess: (r: any) => setIgResult({ ok: !!r?.ok, text: JSON.stringify(r) }),
     onError: (e: any) => setIgResult({ ok: false, text: `Error: ${e.message}` }),
+  });
+  const runRouterCheck = useMutation({
+    mutationFn: async () => await routerCheck(),
+    onSuccess: (r: any) => setRouterResult({ ok: !!r?.ok, text: JSON.stringify(r) }),
+    onError: (e: any) => setRouterResult({ ok: false, text: `Error: ${e.message}` }),
   });
 
   if (!form || !nform) return <div className="text-muted-foreground">Loading…</div>;
@@ -232,6 +239,22 @@ function SettingsPage() {
       </form>
 
       <div className="space-y-3">
+        <Section title="AI router connection">
+          <div className="text-xs text-muted-foreground">
+            Checks OpenRouter with the configured DeepSeek model before scans use it.
+          </div>
+          <button type="button" onClick={() => runRouterCheck.mutate()} disabled={runRouterCheck.isPending}
+            className="rounded-md border border-border bg-card px-6 py-2 text-sm font-semibold disabled:opacity-50">
+            {runRouterCheck.isPending ? "Checking…" : "Check AI router"}
+          </button>
+          {routerResult && (
+            <div className={`rounded-md border p-3 text-xs ${routerResult.ok ? "border-bull/40 bg-bull/10 text-bull" : "border-bear/40 bg-bear/10 text-bear"}`}>
+              <div className="font-semibold mb-1">{routerResult.ok ? "✓ AI router OK" : "✗ AI router failed"}</div>
+              <div className="font-mono break-all text-[10px] opacity-80">{routerResult.text}</div>
+            </div>
+          )}
+        </Section>
+
         <Section title="IG connection">
           <div className="text-xs text-muted-foreground">
             Logs in to IG using the configured environment ({form.environment.toUpperCase()}) and fetches the account snapshot.
