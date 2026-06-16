@@ -27,6 +27,8 @@ function Layout() {
               <Link to="/dashboard" activeProps={{ className: "text-primary" }}>Dashboard</Link>
               <Link to="/dashboard/signals" activeProps={{ className: "text-primary" }}>Signals</Link>
               <Link to="/dashboard/orders" activeProps={{ className: "text-primary" }}>Orders</Link>
+              <Link to="/dashboard/performance" activeProps={{ className: "text-primary" }}>Performance</Link>
+              <Link to="/dashboard/jobs" activeProps={{ className: "text-primary" }}>Jobs</Link>
               <Link to="/dashboard/settings" activeProps={{ className: "text-primary" }}>Settings</Link>
               <Link to="/dashboard/logs" activeProps={{ className: "text-primary" }}>Logs</Link>
             </nav>

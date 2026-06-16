@@ -16,6 +16,7 @@ import { buildOrders, type Instrument, type RawSignal } from "./risk.server";
 export interface ScanOptions {
   manual?: boolean;
   forceIgnoreSession?: boolean;
+  dryRunOverride?: boolean;
 }
 
 export interface ScanResult {
@@ -29,6 +30,7 @@ export interface ScanResult {
   signals_validated: number;
   orders_built: number;
   orders_executed: number;
+  dry_run?: boolean;
   details?: any;
 }
 
@@ -176,17 +178,55 @@ export async function runScan(opts: ScanOptions = {}): Promise<ScanResult> {
     min_confidence: Number(settings.min_confidence),
   });
 
+  const dryRun = opts.dryRunOverride ?? !!settings.dry_run;
+
   if (daily_loss_limit_hit) {
     await supabaseAdmin.from("daily_pnl").upsert({
       date: today, realized_pnl: realized, loss_cap_hit: true,
     }, { onConflict: "date" });
+    // Pause auto-exec for the day and send notification once per day
+    if (settings.auto_execute) {
+      await supabaseAdmin.from("app_settings").update({ auto_execute: false }).eq("id", 1);
+      await log("loss_cap", "Daily loss cap hit — auto_execute paused", { realized, equity: session.accountEquity });
+    }
+    if (settings.loss_cap_notified_date !== today) {
+      try {
+        const { sendNotification } = await import("./notify.server");
+        const r = await sendNotification({
+          type: "loss_cap_triggered",
+          date: today,
+          equity: session.accountEquity,
+          daily_pnl: realized,
+          cap_pct: Number(settings.max_daily_loss_pct),
+          ts: new Date().toISOString(),
+        });
+        await log("notify", "Loss-cap notification dispatched", r);
+      } catch (e: any) {
+        await log("error", `Notify failed: ${e.message}`);
+      }
+      await supabaseAdmin.from("app_settings").update({ loss_cap_notified_date: today }).eq("id", 1);
+    }
   }
 
-  // Execute
+  // Execute (or simulate)
   let executed = 0;
-  if (settings.auto_execute) {
+  const canExecute = (settings.auto_execute && !daily_loss_limit_hit) || opts.manual;
+  if (canExecute) {
     for (const o of orders) {
       const sigId = signalIdsByEpic.get(o.epic + ":" + o.direction) ?? null;
+      if (dryRun) {
+        await supabaseAdmin.from("orders").insert({
+          signal_id: sigId, epic: o.epic, direction: o.direction, size: o.size,
+          stop_loss: o.stop_loss, take_profit: o.take_profit,
+          status: "dry_run",
+          raw: { dry_run: true, would_be: o } as any,
+        });
+        if (sigId) {
+          await supabaseAdmin.from("signals").update({ status: "dry_run" }).eq("id", sigId);
+        }
+        executed++;
+        continue;
+      }
       const ig = await igCreatePosition(session, {
         epic: o.epic, direction: o.direction, size: o.size,
         stopLevel: o.stop_loss, limitLevel: o.take_profit,
@@ -207,8 +247,8 @@ export async function runScan(opts: ScanOptions = {}): Promise<ScanResult> {
     }
   }
 
-  await log("scan", `Scan complete: ${validated.length} validated, ${orders.length} built, ${executed} executed`, {
-    env, equity: session.accountEquity, realized, skipped,
+  await log("scan", `Scan complete${dryRun ? " (DRY RUN)" : ""}: ${validated.length} validated, ${orders.length} built, ${executed} ${dryRun ? "simulated" : "executed"}`, {
+    env, equity: session.accountEquity, realized, skipped, dry_run: dryRun,
     quotes: quotes.map((q) => ({ epic: q.epic, bid: q.bid, ask: q.ask })),
   });
 
@@ -219,12 +259,48 @@ export async function runScan(opts: ScanOptions = {}): Promise<ScanResult> {
     signals_generated: rawSignals.length,
     signals_validated: validated.length,
     orders_built: orders.length, orders_executed: executed,
+    dry_run: dryRun,
     details: { skipped },
   };
 }
 
-export async function runEodClose(): Promise<{ closed: number; equity: number }> {
+export interface EodResult {
+  ok: boolean;
+  skipped_reason?: string;
+  closed: number;
+  equity: number;
+  ny_time?: string;
+}
+
+// Returns current HH:mm in America/New_York (DST-aware).
+export function nyHHmm(d: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit",
+  }).formatToParts(d);
+  const hh = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const mm = parts.find((p) => p.type === "minute")?.value ?? "00";
+  return `${hh}:${mm}`;
+}
+
+export async function runEodClose(opts: { force?: boolean; gate?: boolean } = {}): Promise<EodResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const ny = nyHHmm();
+
+  // DST-aware gate: only run at 16:55 NY unless forced
+  if (opts.gate && !opts.force && ny !== "16:55") {
+    return { ok: true, skipped_reason: `gate: NY ${ny} != 16:55`, closed: 0, equity: 0, ny_time: ny };
+  }
+
+  const today = ymdInEst();
+  // Idempotency: skip if already closed today
+  if (!opts.force) {
+    const { data: existing } = await supabaseAdmin
+      .from("daily_pnl").select("eod_closed_at").eq("date", today).maybeSingle();
+    if (existing?.eod_closed_at) {
+      return { ok: true, skipped_reason: "already_closed_today", closed: 0, equity: 0, ny_time: ny };
+    }
+  }
+
   const { data: settings } = await supabaseAdmin
     .from("app_settings").select("environment").eq("id", 1).single();
   const env = ((settings as any)?.environment as IgEnv) ?? "demo";
@@ -244,16 +320,16 @@ export async function runEodClose(): Promise<{ closed: number; equity: number }>
     if (r.ok) closed++;
   }
 
-  const today = ymdInEst();
   await supabaseAdmin.from("daily_pnl").upsert({
     date: today,
     equity_close: session.accountEquity,
     positions_closed_at_eod: closed,
+    eod_closed_at: new Date().toISOString(),
   }, { onConflict: "date" });
 
-  await log("eod", `EOD close ${closed} positions, equity ${session.accountEquity}`, { env });
+  await log("eod", `EOD close ${closed} positions, equity ${session.accountEquity}`, { env, ny });
 
-  return { closed, equity: session.accountEquity };
+  return { ok: true, closed, equity: session.accountEquity, ny_time: ny };
 }
 
 async function baseResult(env: IgEnv, reason: string): Promise<ScanResult> {
