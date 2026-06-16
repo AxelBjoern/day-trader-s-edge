@@ -16,6 +16,7 @@ import { buildOrders, type Instrument, type RawSignal } from "./risk.server";
 export interface ScanOptions {
   manual?: boolean;
   forceIgnoreSession?: boolean;
+  dryRunOverride?: boolean;
 }
 
 export interface ScanResult {
