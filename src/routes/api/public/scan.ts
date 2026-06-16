@@ -11,7 +11,8 @@ export const Route = createFileRoute("/api/public/scan")({
         }
         try {
           const { runScan } = await import("@/lib/scan.server");
-          const result = await runScan();
+          const { recordJobRun } = await import("@/lib/jobs.server");
+          const result = await recordJobRun("scan", () => runScan());
           return Response.json(result);
         } catch (e: any) {
           return new Response(`Error: ${e?.message ?? "unknown"}`, { status: 500 });
