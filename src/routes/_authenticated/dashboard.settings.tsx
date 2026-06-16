@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getDashboard, getInstruments, updateSettings,
   getNotificationSettings, updateNotificationSettings, sendTestNotification,
+  checkIgConnection,
 } from "@/lib/trading.functions";
 import { useEffect, useState } from "react";
 
