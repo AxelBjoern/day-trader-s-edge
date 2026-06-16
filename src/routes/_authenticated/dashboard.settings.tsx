@@ -62,6 +62,26 @@ function SettingsPage() {
     onSuccess: (r: any) => setIgResult(r),
     onError: (e: any) => setIgResult({ ok: false, error: e.message, error_code: "client-error", next_step: "Retry — the request didn't reach the server." }),
   });
+  const runIgBothCheck = useMutation({
+    mutationFn: async () => {
+      const [demo, live] = await Promise.all([
+        igCheck({ data: { environment: "demo" } }).catch((e: any) => ({
+          ok: false, environment: "demo", error: e.message,
+          error_code: "client-error", next_step: "Retry — request didn't reach the server.",
+        })),
+        igCheck({ data: { environment: "live" } }).catch((e: any) => ({
+          ok: false, environment: "live", error: e.message,
+          error_code: "client-error", next_step: "Retry — request didn't reach the server.",
+        })),
+      ]);
+      return { demo, live };
+    },
+    onSuccess: (r) => setIgBoth(r),
+    onError: (e: any) => setIgBoth({
+      demo: { ok: false, environment: "demo", error: e.message, error_code: "client-error" },
+      live: { ok: false, environment: "live", error: e.message, error_code: "client-error" },
+    }),
+  });
   const runRouterCheck = useMutation({
     mutationFn: async () => await routerCheck(),
     onSuccess: (r: any) => setRouterResult({ ok: !!r?.ok, text: JSON.stringify(r) }),
