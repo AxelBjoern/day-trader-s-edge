@@ -31,6 +31,7 @@ function SettingsPage() {
   const [nform, setNform] = useState<any>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [igResult, setIgResult] = useState<any | null>(null);
+  const [igBoth, setIgBoth] = useState<{ demo: any | null; live: any | null } | null>(null);
   const [routerResult, setRouterResult] = useState<{ ok: boolean; text: string } | null>(null);
 
 
