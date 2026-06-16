@@ -264,8 +264,43 @@ export async function runScan(opts: ScanOptions = {}): Promise<ScanResult> {
   };
 }
 
-export async function runEodClose(): Promise<{ closed: number; equity: number }> {
+export interface EodResult {
+  ok: boolean;
+  skipped_reason?: string;
+  closed: number;
+  equity: number;
+  ny_time?: string;
+}
+
+// Returns current HH:mm in America/New_York (DST-aware).
+export function nyHHmm(d: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", hour12: false, hour: "2-digit", minute: "2-digit",
+  }).formatToParts(d);
+  const hh = parts.find((p) => p.type === "hour")?.value ?? "00";
+  const mm = parts.find((p) => p.type === "minute")?.value ?? "00";
+  return `${hh}:${mm}`;
+}
+
+export async function runEodClose(opts: { force?: boolean; gate?: boolean } = {}): Promise<EodResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const ny = nyHHmm();
+
+  // DST-aware gate: only run at 16:55 NY unless forced
+  if (opts.gate && !opts.force && ny !== "16:55") {
+    return { ok: true, skipped_reason: `gate: NY ${ny} != 16:55`, closed: 0, equity: 0, ny_time: ny };
+  }
+
+  const today = ymdInEst();
+  // Idempotency: skip if already closed today
+  if (!opts.force) {
+    const { data: existing } = await supabaseAdmin
+      .from("daily_pnl").select("eod_closed_at").eq("date", today).maybeSingle();
+    if (existing?.eod_closed_at) {
+      return { ok: true, skipped_reason: "already_closed_today", closed: 0, equity: 0, ny_time: ny };
+    }
+  }
+
   const { data: settings } = await supabaseAdmin
     .from("app_settings").select("environment").eq("id", 1).single();
   const env = ((settings as any)?.environment as IgEnv) ?? "demo";
@@ -285,16 +320,16 @@ export async function runEodClose(): Promise<{ closed: number; equity: number }>
     if (r.ok) closed++;
   }
 
-  const today = ymdInEst();
   await supabaseAdmin.from("daily_pnl").upsert({
     date: today,
     equity_close: session.accountEquity,
     positions_closed_at_eod: closed,
+    eod_closed_at: new Date().toISOString(),
   }, { onConflict: "date" });
 
-  await log("eod", `EOD close ${closed} positions, equity ${session.accountEquity}`, { env });
+  await log("eod", `EOD close ${closed} positions, equity ${session.accountEquity}`, { env, ny });
 
-  return { closed, equity: session.accountEquity };
+  return { ok: true, closed, equity: session.accountEquity, ny_time: ny };
 }
 
 async function baseResult(env: IgEnv, reason: string): Promise<ScanResult> {
