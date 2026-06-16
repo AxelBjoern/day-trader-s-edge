@@ -45,8 +45,19 @@ function SettingsPage() {
   });
   const sendTest = useMutation({
     mutationFn: async () => await testNotif(),
-    onSuccess: (r: any) => setTestResult(JSON.stringify(r)),
-    onError: (e: any) => setTestResult(`Error: ${e.message}`),
+    onSuccess: (r: any) => {
+      const emailOk = r?.email?.ok;
+      const webhookOk = r?.webhook?.ok;
+      const sent = r?.email || r?.webhook;
+      const ok = sent ? !!(emailOk || webhookOk) : false;
+      setTestResult({ ok, text: JSON.stringify(r) });
+    },
+    onError: (e: any) => setTestResult({ ok: false, text: `Error: ${e.message}` }),
+  });
+  const runIgCheck = useMutation({
+    mutationFn: async () => await igCheck({ data: {} }),
+    onSuccess: (r: any) => setIgResult({ ok: !!r?.ok, text: JSON.stringify(r) }),
+    onError: (e: any) => setIgResult({ ok: false, text: `Error: ${e.message}` }),
   });
 
   if (!form || !nform) return <div className="text-muted-foreground">Loading…</div>;
