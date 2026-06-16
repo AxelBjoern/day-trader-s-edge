@@ -14,16 +14,293 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      app_settings: {
+        Row: {
+          auto_execute: boolean
+          environment: string
+          id: number
+          live_confirmed: boolean
+          max_daily_loss_pct: number
+          max_risk_per_trade_pct: number
+          min_confidence: number
+          session_end_est: string
+          session_start_est: string
+          updated_at: string
+        }
+        Insert: {
+          auto_execute?: boolean
+          environment?: string
+          id?: number
+          live_confirmed?: boolean
+          max_daily_loss_pct?: number
+          max_risk_per_trade_pct?: number
+          min_confidence?: number
+          session_end_est?: string
+          session_start_est?: string
+          updated_at?: string
+        }
+        Update: {
+          auto_execute?: boolean
+          environment?: string
+          id?: number
+          live_confirmed?: boolean
+          max_daily_loss_pct?: number
+          max_risk_per_trade_pct?: number
+          min_confidence?: number
+          session_end_est?: string
+          session_start_est?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      daily_pnl: {
+        Row: {
+          date: string
+          equity_close: number | null
+          equity_open: number | null
+          loss_cap_hit: boolean
+          positions_closed_at_eod: number | null
+          realized_pnl: number
+          updated_at: string
+        }
+        Insert: {
+          date: string
+          equity_close?: number | null
+          equity_open?: number | null
+          loss_cap_hit?: boolean
+          positions_closed_at_eod?: number | null
+          realized_pnl?: number
+          updated_at?: string
+        }
+        Update: {
+          date?: string
+          equity_close?: number | null
+          equity_open?: number | null
+          loss_cap_hit?: boolean
+          positions_closed_at_eod?: number | null
+          realized_pnl?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      instruments: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          epic: string
+          id: string
+          min_stop_distance_points: number
+          name: string
+          tick_value_per_point: number
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          epic: string
+          id?: string
+          min_stop_distance_points: number
+          name: string
+          tick_value_per_point?: number
+          type: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          epic?: string
+          id?: string
+          min_stop_distance_points?: number
+          name?: string
+          tick_value_per_point?: number
+          type?: string
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          close_level: number | null
+          closed_at: string | null
+          created_at: string
+          deal_id: string | null
+          deal_reference: string | null
+          direction: string
+          epic: string
+          fill_level: number | null
+          id: string
+          raw: Json | null
+          realized_pnl: number | null
+          signal_id: string | null
+          size: number
+          status: string
+          stop_loss: number | null
+          take_profit: number | null
+        }
+        Insert: {
+          close_level?: number | null
+          closed_at?: string | null
+          created_at?: string
+          deal_id?: string | null
+          deal_reference?: string | null
+          direction: string
+          epic: string
+          fill_level?: number | null
+          id?: string
+          raw?: Json | null
+          realized_pnl?: number | null
+          signal_id?: string | null
+          size: number
+          status?: string
+          stop_loss?: number | null
+          take_profit?: number | null
+        }
+        Update: {
+          close_level?: number | null
+          closed_at?: string | null
+          created_at?: string
+          deal_id?: string | null
+          deal_reference?: string | null
+          direction?: string
+          epic?: string
+          fill_level?: number | null
+          id?: string
+          raw?: Json | null
+          realized_pnl?: number | null
+          signal_id?: string | null
+          size?: number
+          status?: string
+          stop_loss?: number | null
+          take_profit?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      signals: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          direction: string
+          entry_price: number | null
+          epic: string
+          id: string
+          justification: string | null
+          name: string | null
+          raw: Json | null
+          status: string
+          stop_loss: number | null
+          take_profit: number | null
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          direction: string
+          entry_price?: number | null
+          epic: string
+          id?: string
+          justification?: string | null
+          name?: string | null
+          raw?: Json | null
+          status?: string
+          stop_loss?: number | null
+          take_profit?: number | null
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          direction?: string
+          entry_price?: number | null
+          epic?: string
+          id?: string
+          justification?: string | null
+          name?: string | null
+          raw?: Json | null
+          status?: string
+          stop_loss?: number | null
+          take_profit?: number | null
+        }
+        Relationships: []
+      }
+      trade_log: {
+        Row: {
+          created_at: string
+          data: Json | null
+          id: number
+          kind: string
+          message: string | null
+        }
+        Insert: {
+          created_at?: string
+          data?: Json | null
+          id?: number
+          kind: string
+          message?: string | null
+        }
+        Update: {
+          created_at?: string
+          data?: Json | null
+          id?: number
+          kind?: string
+          message?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +427,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
