@@ -14,19 +14,23 @@ export interface IgSession {
   currency: string;
 }
 
+function clean(v: string | undefined) {
+  return (v ?? "").replace(/^['"]|['"]$/g, "").trim();
+}
+
 function envCreds(env: IgEnv) {
   if (env === "live") {
     return {
-      apiKey: process.env.IG_LIVE_API_KEY!,
-      username: process.env.IG_LIVE_USERNAME!,
-      password: process.env.IG_LIVE_PASSWORD!,
+      apiKey: clean(process.env.IG_LIVE_API_KEY),
+      username: clean(process.env.IG_LIVE_USERNAME),
+      password: clean(process.env.IG_LIVE_PASSWORD),
       baseUrl: "https://api.ig.com/gateway/deal",
     };
   }
   return {
-    apiKey: process.env.IG_API_KEY!,
-    username: process.env.IG_USERNAME!,
-    password: process.env.IG_PASSWORD!,
+    apiKey: clean(process.env.IG_API_KEY),
+    username: clean(process.env.IG_USERNAME),
+    password: clean(process.env.IG_PASSWORD),
     baseUrl: "https://demo-api.ig.com/gateway/deal",
   };
 }
@@ -35,6 +39,9 @@ export async function igLogin(env: IgEnv): Promise<IgSession> {
   const c = envCreds(env);
   if (!c.apiKey || !c.username || !c.password) {
     throw new Error(`IG credentials missing for ${env}`);
+  }
+  if (!/^[A-Za-z0-9._-]+$/.test(c.username)) {
+    throw new Error(`IG username for ${env} has invalid characters (allowed: letters, digits, . _ -). Check the secret value.`);
   }
   const res = await fetch(`${c.baseUrl}/session`, {
     method: "POST",
