@@ -19,6 +19,7 @@ function SettingsPage() {
   const fetchNotif = useServerFn(getNotificationSettings);
   const updateNotif = useServerFn(updateNotificationSettings);
   const testNotif = useServerFn(sendTestNotification);
+  const igCheck = useServerFn(checkIgConnection);
   const qc = useQueryClient();
 
   const d = useQuery({ queryKey: ["dashboard"], queryFn: () => fetchDash() });
@@ -27,7 +28,9 @@ function SettingsPage() {
 
   const [form, setForm] = useState<any>(null);
   const [nform, setNform] = useState<any>(null);
-  const [testResult, setTestResult] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [igResult, setIgResult] = useState<{ ok: boolean; text: string } | null>(null);
+
 
   useEffect(() => { if (d.data?.settings && !form) setForm(d.data.settings); }, [d.data, form]);
   useEffect(() => { if (notif.data && !nform) setNform(notif.data); }, [notif.data, nform]);
