@@ -263,13 +263,9 @@ function SettingsPage() {
             className="rounded-md border border-border bg-card px-6 py-2 text-sm font-semibold disabled:opacity-50">
             {runIgCheck.isPending ? "Checking…" : "Check IG connection"}
           </button>
-          {igResult && (
-            <div className={`rounded-md border p-3 text-xs ${igResult.ok ? "border-bull/40 bg-bull/10 text-bull" : "border-bear/40 bg-bear/10 text-bear"}`}>
-              <div className="font-semibold mb-1">{igResult.ok ? "✓ IG connection OK" : "✗ IG connection failed"}</div>
-              <div className="font-mono break-all text-[10px] opacity-80">{igResult.text}</div>
-            </div>
-          )}
+          {igResult && <IgDiagnosticsPanel r={igResult} />}
         </Section>
+
       </div>
     </div>
   );
