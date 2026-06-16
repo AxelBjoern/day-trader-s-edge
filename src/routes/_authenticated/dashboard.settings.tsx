@@ -30,7 +30,7 @@ function SettingsPage() {
   const [form, setForm] = useState<any>(null);
   const [nform, setNform] = useState<any>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
-  const [igResult, setIgResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [igResult, setIgResult] = useState<any | null>(null);
   const [routerResult, setRouterResult] = useState<{ ok: boolean; text: string } | null>(null);
 
 
