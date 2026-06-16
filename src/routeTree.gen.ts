@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard.index'
 import { Route as ApiPublicScanRouteImport } from './routes/api/public/scan'
 import { Route as ApiPublicEodCloseRouteImport } from './routes/api/public/eod-close'
 import { Route as AuthenticatedDashboardSignalsRouteImport } from './routes/_authenticated/dashboard.signals'
@@ -41,6 +42,12 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDashboardIndexRoute =
+  AuthenticatedDashboardIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedDashboardRoute,
+  } as any)
 const ApiPublicScanRoute = ApiPublicScanRouteImport.update({
   id: '/api/public/scan',
   path: '/api/public/scan',
@@ -100,11 +107,11 @@ export interface FileRoutesByFullPath {
   '/dashboard/signals': typeof AuthenticatedDashboardSignalsRoute
   '/api/public/eod-close': typeof ApiPublicEodCloseRoute
   '/api/public/scan': typeof ApiPublicScanRoute
+  '/dashboard/': typeof AuthenticatedDashboardIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
-  '/dashboard': typeof AuthenticatedDashboardRouteWithChildren
   '/dashboard/jobs': typeof AuthenticatedDashboardJobsRoute
   '/dashboard/logs': typeof AuthenticatedDashboardLogsRoute
   '/dashboard/orders': typeof AuthenticatedDashboardOrdersRoute
@@ -113,6 +120,7 @@ export interface FileRoutesByTo {
   '/dashboard/signals': typeof AuthenticatedDashboardSignalsRoute
   '/api/public/eod-close': typeof ApiPublicEodCloseRoute
   '/api/public/scan': typeof ApiPublicScanRoute
+  '/dashboard': typeof AuthenticatedDashboardIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -128,6 +136,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard/signals': typeof AuthenticatedDashboardSignalsRoute
   '/api/public/eod-close': typeof ApiPublicEodCloseRoute
   '/api/public/scan': typeof ApiPublicScanRoute
+  '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -143,11 +152,11 @@ export interface FileRouteTypes {
     | '/dashboard/signals'
     | '/api/public/eod-close'
     | '/api/public/scan'
+    | '/dashboard/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
-    | '/dashboard'
     | '/dashboard/jobs'
     | '/dashboard/logs'
     | '/dashboard/orders'
@@ -156,6 +165,7 @@ export interface FileRouteTypes {
     | '/dashboard/signals'
     | '/api/public/eod-close'
     | '/api/public/scan'
+    | '/dashboard'
   id:
     | '__root__'
     | '/'
@@ -170,6 +180,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard/signals'
     | '/api/public/eod-close'
     | '/api/public/scan'
+    | '/_authenticated/dashboard/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -209,6 +220,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard/': {
+      id: '/_authenticated/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/api/public/scan': {
       id: '/api/public/scan'
@@ -276,6 +294,7 @@ interface AuthenticatedDashboardRouteChildren {
   AuthenticatedDashboardPerformanceRoute: typeof AuthenticatedDashboardPerformanceRoute
   AuthenticatedDashboardSettingsRoute: typeof AuthenticatedDashboardSettingsRoute
   AuthenticatedDashboardSignalsRoute: typeof AuthenticatedDashboardSignalsRoute
+  AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
 }
 
 const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
@@ -287,6 +306,7 @@ const AuthenticatedDashboardRouteChildren: AuthenticatedDashboardRouteChildren =
       AuthenticatedDashboardPerformanceRoute,
     AuthenticatedDashboardSettingsRoute: AuthenticatedDashboardSettingsRoute,
     AuthenticatedDashboardSignalsRoute: AuthenticatedDashboardSignalsRoute,
+    AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   }
 
 const AuthenticatedDashboardRouteWithChildren =
