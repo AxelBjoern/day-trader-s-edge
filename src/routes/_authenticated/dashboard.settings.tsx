@@ -58,8 +58,8 @@ function SettingsPage() {
   });
   const runIgCheck = useMutation({
     mutationFn: async () => await igCheck({ data: {} }),
-    onSuccess: (r: any) => setIgResult({ ok: !!r?.ok, text: JSON.stringify(r) }),
-    onError: (e: any) => setIgResult({ ok: false, text: `Error: ${e.message}` }),
+    onSuccess: (r: any) => setIgResult(r),
+    onError: (e: any) => setIgResult({ ok: false, error: e.message, error_code: "client-error", next_step: "Retry — the request didn't reach the server." }),
   });
   const runRouterCheck = useMutation({
     mutationFn: async () => await routerCheck(),
