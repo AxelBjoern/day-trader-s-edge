@@ -1,60 +1,84 @@
-## IG CFD Day Trader — Full App
+# Trading Ops Enhancements
 
-Builds a TanStack Start app on Lovable Cloud that scans Nasdaq / FX / BTC every 5 min during the EST session, generates signals via Hermes (OpenRouter), risk-sizes them, auto-executes through the IG API, and force-closes everything at 16:55 EST.
+Four additions on top of the existing IG CFD app. Each is scoped to keep blast radius small and reuse current tables (`daily_pnl`, `orders`, `trade_log`, `app_settings`).
 
-### Secrets needed
-- `IG_API_KEY`, `IG_USERNAME`, `IG_PASSWORD` (demo)
-- `IG_LIVE_API_KEY`, `IG_LIVE_USERNAME`, `IG_LIVE_PASSWORD` (live)
-- `OPENROUTER_API_KEY`
-- `CRON_SECRET` (shared secret for pg_cron → webhook auth)
+## 1. Performance charts + CSV export
 
-You'll be prompted for these after Cloud is enabled.
+**New route:** `/dashboard/performance`
+- **Realized P&L chart** — line chart of `daily_pnl.daily_realized_pnl` over time, with a cumulative-equity line overlay. Date-range presets (7d / 30d / 90d / All) + custom range picker.
+- **Orders chart** — stacked bars per day of orders by `status` (filled / closed / rejected), plus a win-rate line (closed orders with `realized_pnl > 0` / total closed).
+- **Per-instrument breakdown** — small table: instrument, trades, win rate, total realized P&L.
+- **CSV export buttons** — "Export daily P&L" and "Export orders" produce CSVs respecting the active date range. Implemented as authenticated `createServerFn` returning CSV text; client triggers a Blob download.
+- Charts use Recharts (already in shadcn stack) with the existing terminal theme tokens (bull/bear colors).
 
-### Backend (Lovable Cloud + TanStack server routes)
+## 2. Loss-cap notifications
 
-Database tables:
-- `app_settings` — singleton: environment (`demo`|`live`), min_confidence, max_risk_per_trade_pct (0.02), max_daily_loss_pct (0.05), auto_execute (bool), session_start/end EST.
-- `instruments` — epic, name, type, min_stop_distance_points, tick_value_per_point. Seeded with the 4 from your spec.
-- `signals` — generated signal + LLM justification + status (pending/skipped/executed/rejected).
-- `orders` — built order, sizing math, IG `dealReference`, status, fill price.
-- `daily_pnl` — date, realized P&L, equity snapshots, loss-cap-hit flag.
-- `trade_log` — full audit trail of every scan/exec/close.
+When `scan.server.ts` detects daily realized loss ≥ `daily_loss_cap_pct` and pauses `auto_execute` for the day:
+- **New table** `notification_settings` (singleton, admin-only): `email_enabled`, `email_to`, `webhook_enabled`, `webhook_url`, `notify_on_loss_cap`, `notify_on_eod`, `notify_on_errors`.
+- **New helper** `src/lib/notify.server.ts` — `sendLossCapAlert({ date, equity, dailyPnl, capPct })`:
+  - Email path uses the Lovable Cloud email infrastructure (will run the email-domain setup tool on first build).
+  - Webhook path posts JSON `{ type: "loss_cap_triggered", date, equity, daily_pnl, cap_pct, ts }` with HMAC `x-vdnx-signature` using `CRON_SECRET`.
+- **Idempotency** — add `loss_cap_notified_date` to `app_settings`; only send once per UTC date.
+- Settings page gets a "Notifications" card to configure recipients and toggle channels, plus a "Send test alert" button.
 
-All tables RLS-protected; only authenticated admin role can read/write.
+## 3. DST-aware EOD scheduling (16:55 America/New_York)
 
-Server routes (under `src/routes/api/public/` so pg_cron can hit them; each verifies `CRON_SECRET`):
-- `POST /api/public/scan` — runs the 5-min cycle: IG login → fetch realized PnL → session check → quotes + 30×1m candles → Hermes signal scan → Hermes validation pass → risk sizing → if auto_execute and confidence ≥ min, place market order with stop/limit → log everything.
-- `POST /api/public/eod-close` — IG login → list open positions → close each with opposite-direction market order → write daily summary.
-- `POST /api/public/manual-scan` and `POST /api/public/manual-close` — same logic, gated by authenticated session instead of CRON_SECRET, for dashboard buttons.
+Problem: current cron `55 16 * * 1-5` is UTC, so it drifts between EST/EDT.
 
-Server-fn helpers (`src/lib/ig.server.ts`, `src/lib/openrouter.server.ts`, `src/lib/risk.server.ts`) encapsulate IG REST calls (session, /markets, /prices, /positions/otc, /history/transactions), Hermes calls (`nousresearch/hermes-4-405b` via OpenRouter chat completions with JSON-mode), and the position-sizing / daily-loss-cap math from your spec.
+Fix: run the cron **every minute on weekdays during the candidate window** and let the handler decide.
+- New cron `vdnx-eod-close-gate`: `50-59 20-21 * * 1-5` (covers 16:50–17:59 ET across both DST states).
+- `/api/public/eod-close` checks `new Date().toLocaleString("en-US", { timeZone: "America/New_York", ... })` — only runs if NY time is exactly `16:55` (minute granularity) **and** today's EOD hasn't run yet (idempotency via `daily_pnl.eod_closed_at` timestamp column, new).
+- Old fixed UTC cron is dropped in the same migration.
 
-pg_cron jobs:
-- `*/5 * * * *` → `net.http_post` to `/api/public/scan` with `Authorization: Bearer ${CRON_SECRET}`.
-- `55 16 * * 1-5` (stored as UTC equivalent, DST-aware note in README) → `/api/public/eod-close`.
+## 4. Cron status & last-run dashboard
 
-### Frontend (dashboard)
+- **New table** `job_runs`: `job_name` (`scan` | `eod_close`), `started_at`, `finished_at`, `status` (`success` | `error` | `skipped`), `summary` (jsonb: counts, errors, dry_run flag), `duration_ms`.
+- Both public endpoints write a row on every invocation (skipped runs included — e.g. outside session, dedup-skipped EOD).
+- **New dashboard card** "Cron status" on `/dashboard`:
+  - Per job: last run time (relative), status badge, next expected run, mini sparkline of last 20 runs (green/red dots).
+  - Alert banner if last scan > 15 min ago during a trading session, or last EOD missed.
+- **New route** `/dashboard/jobs` — paginated full history table with summary JSON expand, filter by job/status.
 
-- `/auth` — email/password login (Cloud auth).
-- `/` — overview: today's realized P&L, equity, open positions count, daily-loss-cap progress bar, last scan time, next scheduled scan, big red "Close all now" + "Scan now" buttons.
-- `/signals` — table of recent signals with confidence, LLM justification, status, link to order.
-- `/orders` — executed orders, fill, stop/target, current P&L (live IG fetch).
-- `/settings` — environment toggle (demo/live), risk params, min confidence, auto_execute switch, session window, per-instrument overrides.
-- `/logs` — paginated trade_log viewer.
+## 5. Dry-run mode
 
-Dark, terminal-style trading aesthetic (mono headings, green/red P&L, compact tables).
+- New column `app_settings.dry_run boolean default false` + Settings toggle ("Paper mode — simulate, don't place orders").
+- `scan.server.ts` — when `dry_run` is on:
+  - Runs login, market data, AI signal, validation, risk sizing **unchanged**.
+  - **Skips** the IG `createPosition` call.
+  - Writes `signals` row as usual; writes `orders` row with `status = 'dry_run'` and full sizing payload (`would_be_size`, `would_be_entry`, `would_be_sl`, `would_be_tp`).
+  - `trade_log` entry tagged `dry_run = true`.
+- Dashboard stats clearly badge "DRY RUN" when on; CSV export and charts include a column/legend split so paper trades don't pollute live performance numbers.
+- Manual "Scan now" button gets a "Dry run this scan" variant that overrides per-call regardless of the setting.
 
-### Risk & safety rules baked in
-- Hard stop: if `|realized_pnl_today| ≥ equity × max_daily_loss_pct`, no new orders for the rest of the day (route returns early, logs reason).
-- Per-trade: `size = (equity × risk_pct) / (stop_distance × tick_value)`; skip if stop < `min_stop_distance_points` or if potential loss would breach remaining daily risk budget.
-- Only orders with `confidence ≥ min_confidence` and that survived Hermes validation pass are executed.
-- Live environment requires an extra confirm toggle in Settings before it can be enabled.
+---
 
-### What this app will NOT do
-- No backtesting UI, no chart rendering of candles (data goes to LLM, not a chart) — can be added later.
-- No streaming IG Lightstreamer feed; uses REST snapshots on each 5-min tick.
-- No per-user multi-tenant — single trading account per deployment.
+## Technical details
 
-### Open items before build
-1. Confirm OpenRouter + Hermes 4 405B is the intended model id (`nousresearch/hermes-4-405b`) — or specify a different Hermes variant.
-2. EST session times: spec says 09:30–16:00; this matches NYSE hours. BTC trades 24/7 — should BTC be scanned outside that window? Default in plan: respect the single session window for all instruments unless you say otherwise.
+**Migrations (one file):**
+- `notification_settings` (singleton enforced by `id = 1` check), RLS admin-only, GRANTs.
+- `job_runs` table, RLS admin read + service_role write, GRANTs, index on `(job_name, started_at desc)`.
+- `app_settings`: add `dry_run`, `loss_cap_notified_date`, `notification_settings_id`.
+- `daily_pnl`: add `eod_closed_at timestamptz`.
+- `orders.status` check constraint relaxed → trigger to allow `'dry_run'`.
+- Drop old cron `vdnx-eod-close`, schedule new gate cron.
+
+**Server code (new files):**
+- `src/lib/notify.server.ts` — email + webhook senders, HMAC signing.
+- `src/lib/csv.server.ts` — small CSV serializer (no dep).
+- `src/lib/jobs.server.ts` — `recordJobRun({ jobName, fn })` wrapper used by both public endpoints.
+- `src/lib/performance.functions.ts` — `getDailyPnlSeries`, `getOrdersSeries`, `getInstrumentBreakdown`, `exportDailyPnlCsv`, `exportOrdersCsv` (all `requireSupabaseAuth` + admin check).
+- `src/lib/jobs.functions.ts` — `getRecentJobRuns`, `getLastRunByJob`.
+
+**Server code (edits):**
+- `src/lib/scan.server.ts` — branch on `dry_run`, idempotent loss-cap notify, write `job_runs` via `recordJobRun`.
+- `src/routes/api/public/scan.ts` & `eod-close.ts` — wrap handler in `recordJobRun`, EOD does NY-time gate + dedup.
+
+**Frontend (new/edited):**
+- `src/routes/_authenticated/dashboard.performance.tsx` (new, with Recharts).
+- `src/routes/_authenticated/dashboard.jobs.tsx` (new).
+- `src/routes/_authenticated/dashboard.tsx` — add Cron Status card + dry-run badge.
+- `src/routes/_authenticated/dashboard.settings.tsx` — add Notifications card, Dry-run toggle.
+
+**Email infra:** will run the Lovable email domain setup tool if no domain is configured yet — user will be prompted to pick a sender domain on first build.
+
+**No changes to:** IG client, OpenRouter client, risk sizing math, auth, RBAC.
