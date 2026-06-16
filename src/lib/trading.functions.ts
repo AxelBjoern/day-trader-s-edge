@@ -329,3 +329,31 @@ export const checkIgConnection = createServerFn({ method: "POST" })
       };
     }
   });
+
+export const checkOpenRouterConnection = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAdmin(context);
+    const started = Date.now();
+    try {
+      const { callOpenRouter, getOpenRouterModel, parseJsonLoose } = await import("./openrouter.server");
+      const model = getOpenRouterModel();
+      const out = await callOpenRouter([
+        { role: "system", content: "Return only JSON." },
+        { role: "user", content: "Return {\"ok\":true}." },
+      ], { json: true, temperature: 0, model });
+      return {
+        ok: parseJsonLoose<{ ok?: boolean }>(out)?.ok === true,
+        provider: "OpenRouter",
+        model,
+        latency_ms: Date.now() - started,
+      };
+    } catch (e: any) {
+      return {
+        ok: false,
+        provider: "OpenRouter",
+        latency_ms: Date.now() - started,
+        error: e?.message ?? String(e),
+      };
+    }
+  });
