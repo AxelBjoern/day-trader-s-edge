@@ -1,6 +1,6 @@
-// OpenRouter client for Hermes signal generation. Server-only.
+// OpenRouter client for DeepSeek signal generation. Server-only.
 
-const HERMES_MODEL = "nousresearch/hermes-4-405b";
+const DEFAULT_MODEL = "deepseek/deepseek-v4-pro";
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
 export interface ChatMessage {
@@ -8,14 +8,22 @@ export interface ChatMessage {
   content: string;
 }
 
-export async function callHermes(
+function clean(v: string | undefined) {
+  return (v ?? "").trim().replace(/^['"]|['"]$/g, "").trim();
+}
+
+export function getOpenRouterModel() {
+  return clean(process.env.OPENROUTER_MODEL) || DEFAULT_MODEL;
+}
+
+export async function callOpenRouter(
   messages: ChatMessage[],
   opts: { temperature?: number; json?: boolean; model?: string } = {},
 ) {
-  const key = process.env.OPENROUTER_API_KEY;
+  const key = clean(process.env.OPENROUTER_API_KEY);
   if (!key) throw new Error("OPENROUTER_API_KEY missing");
   const body: any = {
-    model: opts.model ?? HERMES_MODEL,
+    model: opts.model ?? getOpenRouterModel(),
     messages,
     temperature: opts.temperature ?? 0.2,
   };

@@ -24,7 +24,7 @@ function Landing() {
         </h1>
         <p className="mt-6 max-w-2xl text-muted-foreground">
           Scans Nasdaq, EUR/USD, GBP/USD and BTC every 5 minutes during the EST session.
-          Hermes-validated signals, hard daily loss cap, force-close at 16:55 EST.
+          DeepSeek-validated signals, hard daily loss cap, force-close at 16:55 EST.
         </p>
         <div className="mt-10 flex gap-3">
           <Link
@@ -44,7 +44,7 @@ function Landing() {
         <div className="mt-20 grid grid-cols-1 gap-4 md:grid-cols-3">
           {[
             ["5-min scan", "IG REST snapshots + 30×1m candles"],
-            ["Hermes 4 405B", "Two-pass scan + validation via OpenRouter"],
+            ["DeepSeek V4 Pro", "Two-pass scan + validation via OpenRouter"],
             ["Hard risk cap", "2% per trade, 5% daily, EOD flat"],
           ].map(([h, p]) => (
             <div key={h} className="rounded-md border border-border bg-card p-4">

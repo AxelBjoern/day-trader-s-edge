@@ -10,7 +10,7 @@ import {
   type IgEnv,
   type IgSession,
 } from "./ig.server";
-import { callHermes, parseJsonLoose } from "./openrouter.server";
+import { callOpenRouter, getOpenRouterModel, parseJsonLoose } from "./openrouter.server";
 import { buildOrders, type Instrument, type RawSignal } from "./risk.server";
 
 export interface ScanOptions {
@@ -112,7 +112,9 @@ export async function runScan(opts: ScanOptions = {}): Promise<ScanResult> {
     }
   }
 
-  // Hermes scan
+  const model = getOpenRouterModel();
+
+  // OpenRouter scan
   const scanPrompt = [
     {
       role: "system" as const,
@@ -126,14 +128,14 @@ export async function runScan(opts: ScanOptions = {}): Promise<ScanResult> {
   ];
   let rawSignals: RawSignal[] = [];
   try {
-    const out = await callHermes(scanPrompt, { json: true });
+    const out = await callOpenRouter(scanPrompt, { json: true });
     const parsed = parseJsonLoose<{ signals: RawSignal[] }>(out);
     rawSignals = (parsed?.signals ?? []).filter(Boolean);
   } catch (e: any) {
-    await log("error", `Hermes scan failed: ${e.message}`);
+    await log("error", `OpenRouter scan failed (${model}): ${e.message}`);
   }
 
-  // Hermes validation pass
+  // OpenRouter validation pass
   let validated: RawSignal[] = [];
   if (rawSignals.length > 0) {
     const validatePrompt = [
@@ -148,11 +150,11 @@ export async function runScan(opts: ScanOptions = {}): Promise<ScanResult> {
       },
     ];
     try {
-      const out = await callHermes(validatePrompt, { json: true });
+      const out = await callOpenRouter(validatePrompt, { json: true });
       const parsed = parseJsonLoose<{ signals: RawSignal[] }>(out);
       validated = (parsed?.signals ?? []).filter(Boolean);
     } catch (e: any) {
-      await log("error", `Hermes validate failed: ${e.message}`);
+      await log("error", `OpenRouter validate failed (${model}): ${e.message}`);
     }
   }
 
@@ -248,7 +250,7 @@ export async function runScan(opts: ScanOptions = {}): Promise<ScanResult> {
   }
 
   await log("scan", `Scan complete${dryRun ? " (DRY RUN)" : ""}: ${validated.length} validated, ${orders.length} built, ${executed} ${dryRun ? "simulated" : "executed"}`, {
-    env, equity: session.accountEquity, realized, skipped, dry_run: dryRun,
+    env, equity: session.accountEquity, realized, skipped, dry_run: dryRun, model,
     quotes: quotes.map((q) => ({ epic: q.epic, bid: q.bid, ask: q.ask })),
   });
 

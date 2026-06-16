@@ -35,6 +35,19 @@ function envCreds(env: IgEnv) {
   };
 }
 
+function explainLoginFailure(status: number, body: string, env: IgEnv) {
+  if (status === 401 && body.includes("error.security.invalid-details")) {
+    return `IG rejected the ${env} credentials: username, password, API key, or environment do not match an active ${env} IG account.`;
+  }
+  if (status === 401 && body.includes("error.security.client-token-invalid")) {
+    return `IG rejected the ${env} API key. Check that the key belongs to the same ${env} account as the username.`;
+  }
+  if (status === 403) {
+    return `IG refused API access for the ${env} account. Confirm API access is enabled on the IG account.`;
+  }
+  return `IG login failed (${status}): ${body}`;
+}
+
 export async function igLogin(env: IgEnv): Promise<IgSession> {
   const c = envCreds(env);
   if (!c.apiKey || !c.username || !c.password) {
@@ -59,7 +72,7 @@ export async function igLogin(env: IgEnv): Promise<IgSession> {
   });
   if (!res.ok) {
     const txt = await res.text();
-    throw new Error(`IG login failed (${res.status}): ${txt}`);
+    throw new Error(explainLoginFailure(res.status, txt, env));
   }
   const cst = res.headers.get("CST") ?? "";
   const xst = res.headers.get("X-SECURITY-TOKEN") ?? "";
