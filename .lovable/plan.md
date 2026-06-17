@@ -1,48 +1,45 @@
-# IG Credentials Diagnostics Panel
+## Goal
 
-Replace the current raw-JSON failure banner under "IG CONNECTION" with a structured diagnostics panel that surfaces actionable information when login is rejected.
+Both demo and live IG logins return `error.security.invalid-details` (HTTP 401). The code is spec-correct, so the failure is on the IG side (wrong env key, expired demo, or username vs email). This plan adds the maximum useful help we can give from the app without changing the underlying credentials.
 
-## What it shows
+## Scope
 
-On every "Check IG connection" result (success or failure):
-- **Environment** — `demo` / `live` badge.
-- **Sanitized identifier** — IG username masked to first 2 + last 2 chars (e.g. `ax****22`), plus character length. Never reveals the full username, password, or API key.
-- **API key fingerprint** — last 4 chars only (e.g. `••••A1B2`), so the user can verify which key is loaded without exposing it.
-- **Latency** — ms from the existing response.
-- **Status** — OK / Failed with HTTP-style error code.
+Three small, independent changes in `src/lib/ig.server.ts` and `src/routes/_authenticated/dashboard.settings.tsx`. No DB, no new secrets, no UI redesign.
 
-On failure additionally:
-- **Error code** — parsed IG code (e.g. `error.security.invalid-details`, `error.security.client-token-invalid`, HTTP status).
-- **Next step** — one clear human sentence tied to the code:
-  - `invalid-details` → "Update IG_USERNAME and IG_PASSWORD — they don't match an active demo account."
-  - `client-token-invalid` → "Update IG_API_KEY — the key isn't valid for this username."
-  - `403` → "Enable API access on the IG account."
-  - unknown → generic "Re-check all three IG secrets for the selected environment."
-- **Action buttons** — "Update IG secrets" (opens secrets dialog), "Switch environment" link.
+### 1. v3 OAuth fallback in `igLogin`
 
-On success: equity, balance, currency, open positions (already returned).
+- Keep the current v2 call as the primary path.
+- On HTTP 401 with `error.security.invalid-details` only, retry once against the same base URL with `Version: 3` and body `{ identifier, password }` (no `encryptedPassword`).
+- v3 success returns `oauthToken.access_token`, `oauthToken.refresh_token`, and `accountId` in the body. Build the `IgSession` from those: store `access_token` as `xst` substitute is not valid — instead extend `IgSession` with optional `oauth: { accessToken, refreshToken, accountId, tokenType, expiresInSec }`.
+- Update `authHeaders()` to prefer OAuth headers when `oauth` is set: `Authorization: Bearer <access_token>` and `IG-ACCOUNT-ID: <accountId>`; otherwise keep `CST` / `X-SECURITY-TOKEN`.
+- Why: community reports on `ig-python/trading-ig#202` show v3 sometimes succeeds on demo when v2 returns `invalid-details`. Costs one extra request only on failure.
 
-## Technical changes
+### 2. Lockout-aware error reporting
 
-### `src/lib/ig.server.ts`
-- Add `sanitizeIdentifier(u)` → `ax****22` (first 2 + last 2, `*` middle; `***` if ≤ 4 chars).
-- Add `fingerprintKey(k)` → last 4 chars.
-- Add `parseIgErrorCode(status, body)` → returns `{ code: string | null, httpStatus: number }` extracted from IG's `errorCode` JSON field (fallback to substring scan).
-- Export a new `igDiagnostics(env)` helper that returns `{ env, identifier, identifier_len, api_key_fingerprint, has_password }` from secrets without performing login (used even when secrets are missing).
+- Extend `parseIgErrorCode` consumers to distinguish `error.security.too-many-failed-attempts` (the real lockout code per IG docs) from `error.security.invalid-details`.
+- In `nextStepForIgError`, add a branch for `too-many-failed-attempts` that says: "IG locked the account after repeated failed logins. Wait ~15 minutes before retrying."
+- Keep the existing `invalid-details` message but append: "If you can sign in at the IG portal with these credentials, regenerate the API key for this environment."
 
-### `src/lib/trading.functions.ts`
-- Extend `checkIgConnection` response shape:
-  - Always include `identifier`, `identifier_len`, `api_key_fingerprint`, `password_set` (boolean), `env_credentials_present`.
-  - On failure include `error_code` (parsed IG code or HTTP status string) and `next_step` (string).
-- Implementation: call `igDiagnostics(env)` first; then attempt login. On thrown error parse the message for the IG code via the new helper.
+### 3. Settings UI: portal links + tightened guard
 
-### `src/routes/_authenticated/dashboard.settings.tsx`
-- Replace the raw `JSON.stringify(r)` rendering for IG with a new `<IgDiagnostics result={...} />` panel:
-  - Grid of labeled fields (identifier, API key, env, latency).
-  - Colored status row (green/red).
-  - On failure: error code chip + next-step paragraph + "Update IG secrets" button (uses existing settings flow / opens backend link).
-- OpenRouter banner stays as-is (out of scope).
+- In the IG diagnostics panel (`dashboard.settings.tsx`), add two small outbound links below the Check buttons:
+  - "Open IG demo portal" → `https://demo.ig.com/`
+  - "Open IG live portal" → `https://www.ig.com/`
+- Render a one-line hint when the latest result's `errorCode` is `error.security.invalid-details`: "Verify the username (not email) and password at the matching portal, then regenerate the API key there."
+- Tighten the username validation regex in `igLogin` from `/^[A-Za-z0-9._-]+$/` to `/^[A-Za-z0-9_-]{1,30}$/` to match IG's published `identifier` pattern.
 
 ## Out of scope
-- No changes to scan logic, OpenRouter panel, or secret storage.
-- No new secrets or migrations.
+
+- Storing or refreshing v3 access tokens between requests (we re-login per request today; v3 refresh-token rotation is unnecessary).
+- Encrypted-password flow (`GET /session/encryptionKey` + RSA). IG only requires it for a tiny set of accounts and ours isn't one of them.
+- Any change to secrets, env names, or the demo/live toggle.
+
+## Files touched
+
+- `src/lib/ig.server.ts` — `IgSession` type, `igLogin`, `authHeaders`, `nextStepForIgError`, username regex.
+- `src/routes/_authenticated/dashboard.settings.tsx` — portal links + conditional hint in the diagnostics panel.
+
+## Validation
+
+- Click "Check both (demo + live)" with current (rejected) creds: expect the panel to still show 401 but now with portal links and the new hint, and — if v3 happens to succeed on either env — a green success card instead.
+- No regression on a working environment: v2 succeeds on first try, v3 fallback never fires.
