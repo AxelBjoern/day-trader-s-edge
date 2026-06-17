@@ -71,10 +71,10 @@ export function parseIgErrorCode(body: string): string | null {
 export function nextStepForIgError(code: string | null, httpStatus: number, env: IgEnv): string {
   const prefix = env === "live" ? "IG_LIVE_" : "IG_";
   if (code === "error.security.invalid-details") {
-    return `Update ${prefix}USERNAME and ${prefix}PASSWORD — they don't match an active ${env} IG account.`;
-  }
-  if (code === "error.security.invalid-details") {
     return `Update ${prefix}USERNAME and ${prefix}PASSWORD — they don't match an active ${env} IG account. If you can sign in at the IG ${env} portal with these credentials, regenerate ${prefix}API_KEY there.`;
+  }
+  if (code === "error.security.too-many-failed-attempts") {
+    return `IG locked the ${env} account after repeated failed logins. Wait ~15 minutes before retrying.`;
   }
   if (code === "error.security.too-many-failed-attempts") {
     return `IG locked the ${env} account after repeated failed logins. Wait ~15 minutes before retrying.`;
