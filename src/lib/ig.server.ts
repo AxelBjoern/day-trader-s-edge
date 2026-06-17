@@ -3,6 +3,13 @@
 
 export type IgEnv = "demo" | "live";
 
+export interface IgOauth {
+  accessToken: string;
+  refreshToken: string;
+  accountId: string;
+  tokenType: string;
+  expiresInSec: number;
+}
 export interface IgSession {
   cst: string;
   xst: string;
@@ -12,6 +19,7 @@ export interface IgSession {
   accountBalance: number;
   accountPnL: number;
   currency: string;
+  oauth?: IgOauth;
 }
 
 function clean(v: string | undefined) {
