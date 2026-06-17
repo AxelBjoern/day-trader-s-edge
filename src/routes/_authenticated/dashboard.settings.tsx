@@ -290,6 +290,11 @@ function SettingsPage() {
               {runIgBothCheck.isPending ? "Checking demo + live…" : "Check both (demo + live)"}
             </button>
           </div>
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+            <span>If a check fails, sign in at the matching IG portal to verify the username/password, then regenerate the API key there:</span>
+            <a href="https://demo.ig.com/" target="_blank" rel="noreferrer" className="underline hover:text-foreground">IG demo portal ↗</a>
+            <a href="https://www.ig.com/" target="_blank" rel="noreferrer" className="underline hover:text-foreground">IG live portal ↗</a>
+          </div>
           {igResult && <IgDiagnosticsPanel r={igResult} />}
           {igBoth && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
