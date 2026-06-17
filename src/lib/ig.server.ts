@@ -231,7 +231,7 @@ export async function igLogin(env: IgEnv): Promise<IgSession> {
   throw new IgLoginError(explainLoginFailure(res.status, v2Txt, env), v2Code, res.status);
 }
 
-function authHeaders(s: IgSession, version = "1") {
+function authHeaders(s: IgSession, version = "1"): Record<string, string> {
   if (s.oauth?.accessToken) {
     return {
       "X-IG-API-KEY": s.apiKey,
