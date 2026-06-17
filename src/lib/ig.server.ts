@@ -73,6 +73,12 @@ export function nextStepForIgError(code: string | null, httpStatus: number, env:
   if (code === "error.security.invalid-details") {
     return `Update ${prefix}USERNAME and ${prefix}PASSWORD — they don't match an active ${env} IG account.`;
   }
+  if (code === "error.security.invalid-details") {
+    return `Update ${prefix}USERNAME and ${prefix}PASSWORD — they don't match an active ${env} IG account. If you can sign in at the IG ${env} portal with these credentials, regenerate ${prefix}API_KEY there.`;
+  }
+  if (code === "error.security.too-many-failed-attempts") {
+    return `IG locked the ${env} account after repeated failed logins. Wait ~15 minutes before retrying.`;
+  }
   if (code === "error.security.client-token-invalid" || code === "error.security.api-key-invalid") {
     return `Update ${prefix}API_KEY — the key isn't valid for this username on the ${env} environment.`;
   }
