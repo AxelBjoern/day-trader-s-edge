@@ -3,6 +3,13 @@
 
 export type IgEnv = "demo" | "live";
 
+export interface IgOauth {
+  accessToken: string;
+  refreshToken: string;
+  accountId: string;
+  tokenType: string;
+  expiresInSec: number;
+}
 export interface IgSession {
   cst: string;
   xst: string;
@@ -12,6 +19,7 @@ export interface IgSession {
   accountBalance: number;
   accountPnL: number;
   currency: string;
+  oauth?: IgOauth;
 }
 
 function clean(v: string | undefined) {
@@ -63,7 +71,13 @@ export function parseIgErrorCode(body: string): string | null {
 export function nextStepForIgError(code: string | null, httpStatus: number, env: IgEnv): string {
   const prefix = env === "live" ? "IG_LIVE_" : "IG_";
   if (code === "error.security.invalid-details") {
-    return `Update ${prefix}USERNAME and ${prefix}PASSWORD — they don't match an active ${env} IG account.`;
+    return `Update ${prefix}USERNAME and ${prefix}PASSWORD — they don't match an active ${env} IG account. If you can sign in at the IG ${env} portal with these credentials, regenerate ${prefix}API_KEY there.`;
+  }
+  if (code === "error.security.too-many-failed-attempts") {
+    return `IG locked the ${env} account after repeated failed logins. Wait ~15 minutes before retrying.`;
+  }
+  if (code === "error.security.too-many-failed-attempts") {
+    return `IG locked the ${env} account after repeated failed logins. Wait ~15 minutes before retrying.`;
   }
   if (code === "error.security.client-token-invalid" || code === "error.security.api-key-invalid") {
     return `Update ${prefix}API_KEY — the key isn't valid for this username on the ${env} environment.`;
@@ -127,9 +141,11 @@ export async function igLogin(env: IgEnv): Promise<IgSession> {
   if (!c.apiKey || !c.username || !c.password) {
     throw new Error(`IG credentials missing for ${env}`);
   }
-  if (!/^[A-Za-z0-9._-]+$/.test(c.username)) {
-    throw new Error(`IG username for ${env} has invalid characters (allowed: letters, digits, . _ -). Check the secret value.`);
+  if (!/^[A-Za-z0-9_-]{1,30}$/.test(c.username)) {
+    throw new Error(`IG username for ${env} must be 1-30 chars of letters, digits, _ or - (per IG spec). Check the secret value.`);
   }
+
+  // Primary: v2 login (CST / X-SECURITY-TOKEN, 6h-72h session).
   const res = await fetch(`${c.baseUrl}/session`, {
     method: "POST",
     headers: {
@@ -144,30 +160,88 @@ export async function igLogin(env: IgEnv): Promise<IgSession> {
       encryptedPassword: false,
     }),
   });
-  if (!res.ok) {
-    const txt = await res.text();
-    const code = parseIgErrorCode(txt);
-    throw new IgLoginError(explainLoginFailure(res.status, txt, env), code, res.status);
+
+  if (res.ok) {
+    const cst = res.headers.get("CST") ?? "";
+    const xst = res.headers.get("X-SECURITY-TOKEN") ?? "";
+    const body = (await res.json()) as any;
+    const acct = body?.accountInfo;
+    const balance = Number(acct?.balance ?? 0);
+    const profit = Number(acct?.profitLoss ?? 0);
+    return {
+      cst,
+      xst,
+      apiKey: c.apiKey,
+      baseUrl: c.baseUrl,
+      accountBalance: balance,
+      accountPnL: profit,
+      accountEquity: balance + profit,
+      currency: body?.currencyIsoCode ?? "USD",
+    };
   }
-  const cst = res.headers.get("CST") ?? "";
-  const xst = res.headers.get("X-SECURITY-TOKEN") ?? "";
-  const body = (await res.json()) as any;
-  const acct = body?.accountInfo;
-  const balance = Number(acct?.balance ?? 0);
-  const profit = Number(acct?.profitLoss ?? 0);
-  return {
-    cst,
-    xst,
-    apiKey: c.apiKey,
-    baseUrl: c.baseUrl,
-    accountBalance: balance,
-    accountPnL: profit,
-    accountEquity: balance + profit,
-    currency: body?.currencyIsoCode ?? "USD",
-  };
+
+  const v2Txt = await res.text();
+  const v2Code = parseIgErrorCode(v2Txt);
+
+  // Fallback: v3 OAuth login, but ONLY for invalid-details on 401.
+  // Community-reported demo quirk where v2 returns invalid-details while v3 succeeds.
+  if (res.status === 401 && v2Code === "error.security.invalid-details") {
+    const v3 = await fetch(`${c.baseUrl}/session`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json; charset=UTF-8",
+        "X-IG-API-KEY": c.apiKey,
+        Version: "3",
+      },
+      body: JSON.stringify({ identifier: c.username, password: c.password }),
+    });
+    if (v3.ok) {
+      const body = (await v3.json()) as any;
+      const oauth: IgOauth = {
+        accessToken: String(body?.oauthToken?.access_token ?? ""),
+        refreshToken: String(body?.oauthToken?.refresh_token ?? ""),
+        accountId: String(body?.accountId ?? ""),
+        tokenType: String(body?.oauthToken?.token_type ?? "Bearer"),
+        expiresInSec: Number(body?.oauthToken?.expires_in ?? 60),
+      };
+      // v3 doesn't return accountInfo on login; balance/equity stay 0 until queried.
+      return {
+        cst: "",
+        xst: "",
+        apiKey: c.apiKey,
+        baseUrl: c.baseUrl,
+        accountBalance: 0,
+        accountPnL: 0,
+        accountEquity: 0,
+        currency: "USD",
+        oauth,
+      };
+    }
+    // v3 also failed — surface the v3 error if it's more specific, else v2.
+    const v3Txt = await v3.text();
+    const v3Code = parseIgErrorCode(v3Txt);
+    throw new IgLoginError(
+      explainLoginFailure(v3.status, v3Txt, env),
+      v3Code ?? v2Code,
+      v3.status,
+    );
+  }
+
+  throw new IgLoginError(explainLoginFailure(res.status, v2Txt, env), v2Code, res.status);
 }
 
-function authHeaders(s: IgSession, version = "1") {
+function authHeaders(s: IgSession, version = "1"): Record<string, string> {
+  if (s.oauth?.accessToken) {
+    return {
+      "X-IG-API-KEY": s.apiKey,
+      Authorization: `${s.oauth.tokenType || "Bearer"} ${s.oauth.accessToken}`,
+      "IG-ACCOUNT-ID": s.oauth.accountId,
+      Accept: "application/json; charset=UTF-8",
+      "Content-Type": "application/json; charset=UTF-8",
+      Version: version,
+    };
+  }
   return {
     "X-IG-API-KEY": s.apiKey,
     CST: s.cst,
